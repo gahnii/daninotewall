@@ -1,121 +1,130 @@
 export async function onRequest({ request, env, params }) {
-  const id = params.id;
+  const id = (params.id || "").toString();
 
-  // match
   const NOTEW = 240, NOTEH = 132, GRID = 24;
   const STAGE_W = 3000, STAGE_H = 2000;
   const MAX_LEN = 500;
 
+  const HOURLY_MAX = 240;
+  const COOLDOWN_S = 1;
+
   const json = (obj, status = 200) =>
     new Response(JSON.stringify(obj), {
       status,
-      headers: { "content-type": "application/json", "cache-control": "no-store" }
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "no-store",
+      },
     });
+
+  if (!id) return json({ error: "missing id" }, 400);
+
+  const ip =
+    request.headers.get("cf-connecting-ip") ||
+    request.headers.get("x-forwarded-for") ||
+    "unknown";
 
   function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
   function snap(n) { return Math.round(n / GRID) * GRID; }
-  function now() { return new Date().toISOString(); }
+  function nowISO() { return new Date().toISOString(); }
 
-  function rectsOverlap(a, b) {
-    return !(
-      a.x + NOTEW <= b.x ||
-      b.x + NOTEW <= a.x ||
-      a.y + NOTEH <= b.y ||
-      b.y + NOTEH <= a.y
-    );
-  }
-
-  function findFreePos(notes, x, y, exceptId) {
-    const sx = snap(clamp(x, 0, STAGE_W - NOTEW));
-    const sy = snap(clamp(y, 0, STAGE_H - NOTEH));
-
-    const other = notes.filter(n => n.id !== exceptId);
-    const okAt = (px, py) => !other.some(n => rectsOverlap({ x: px, y: py }, n));
-
-    if (okAt(sx, sy)) return { x: sx, y: sy };
-
-    // spiral search around the intended cell
-    const maxR = 60;
-    for (let r = 1; r <= maxR; r++) {
-      for (let dx = -r; dx <= r; dx++) {
-        for (const c of [
-          { x: sx + dx * GRID, y: sy - r * GRID },
-          { x: sx + dx * GRID, y: sy + r * GRID },
-        ]) {
-          const px = snap(clamp(c.x, 0, STAGE_W - NOTEW));
-          const py = snap(clamp(c.y, 0, STAGE_H - NOTEH));
-          if (okAt(px, py)) return { x: px, y: py };
-        }
-      }
-      for (let dy = -r + 1; dy <= r - 1; dy++) {
-        for (const c of [
-          { x: sx - r * GRID, y: sy + dy * GRID },
-          { x: sx + r * GRID, y: sy + dy * GRID },
-        ]) {
-          const px = snap(clamp(c.x, 0, STAGE_W - NOTEW));
-          const py = snap(clamp(c.y, 0, STAGE_H - NOTEH));
-          if (okAt(px, py)) return { x: px, y: py };
-        }
-      }
-    }
-
-    return { x: sx, y: sy };
-  }
-
-  async function sha256(str) {
-    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  async function sha256Hex(str) {
+    const data = new TextEncoder().encode(str);
+    const buf = await crypto.subtle.digest("SHA-256", data);
     return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
   }
 
-  async function load() {
+  async function loadNotes() {
     const raw = await env.NOTEWALL.get("wall:notes");
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    try { return JSON.parse(raw) || []; } catch { return []; }
   }
 
-  async function save(notes) {
+  async function saveNotes(notes) {
     await env.NOTEWALL.put("wall:notes", JSON.stringify(notes));
   }
 
-  const notes = await load();
-  const idx = notes.findIndex(n => n.id === id);
-  if (idx === -1) return json({ error: "not found" }, 404);
+  async function cooldown() {
+    const k = `cool2:${ip}`;
+    if (await env.NOTEWALL.get(k)) return false;
+    await env.NOTEWALL.put(k, "1", { expirationTtl: COOLDOWN_S });
+    return true;
+  }
+
+  async function hourlyLimit() {
+    const k = `rlh2:${ip}`;
+    const cur = Number((await env.NOTEWALL.get(k)) || "0");
+    if (cur >= HOURLY_MAX) return false;
+    await env.NOTEWALL.put(k, String(cur + 1), { expirationTtl: 3600 });
+    return true;
+  }
 
   if (request.method === "PUT") {
-    const body = await request.json();
-    if (!body.editKey) return json({ error: "no editKey" }, 403);
+    if (!(await cooldown())) return json({ error: "slow down" }, 429);
+    if (!(await hourlyLimit())) return json({ error: "rate limited" }, 429);
 
-    const keyHash = await sha256(body.editKey);
-    if (keyHash !== notes[idx].keyHash) return json({ error: "forbidden" }, 403);
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "bad json" }, 400); }
 
-    // update text/color
-    notes[idx].text = (body.text ?? notes[idx].text).toString().slice(0, MAX_LEN);
-    notes[idx].color = (body.color ?? notes[idx].color).toString();
+    const editKey = (body.editKey || "").toString();
+    if (!editKey) return json({ error: "missing editKey" }, 403);
 
-    // update pos if provided
+    const notes = await loadNotes();
+    const i = notes.findIndex(n => n.id === id);
+    if (i === -1) return json({ error: "not found" }, 404);
+
+    const keyHash = await sha256Hex(editKey);
+    if (keyHash !== notes[i].keyHash) return json({ error: "forbidden" }, 403);
+
+    const nextText = (body.text ?? notes[i].text).toString().slice(0, MAX_LEN);
+    const nextColor = (body.color ?? notes[i].color).toString().slice(0, 16);
+
     const hasX = Number.isFinite(Number(body.x));
     const hasY = Number.isFinite(Number(body.y));
+
+    let nextX = notes[i].x;
+    let nextY = notes[i].y;
+
     if (hasX && hasY) {
-      const placed = findFreePos(notes, Number(body.x), Number(body.y), id);
-      notes[idx].x = placed.x;
-      notes[idx].y = placed.y;
+      nextX = snap(clamp(Number(body.x), 0, STAGE_W - NOTEW));
+      nextY = snap(clamp(Number(body.y), 0, STAGE_H - NOTEH));
     }
 
-    notes[idx].updatedAt = now();
-    await save(notes);
+    notes[i] = {
+      ...notes[i],
+      text: nextText,
+      color: nextColor,
+      x: nextX,
+      y: nextY,
+      updatedAt: nowISO(),
+    };
 
-    const { keyHash: _, ...safe } = notes[idx];
+    await saveNotes(notes);
+
+    const { keyHash: _, ...safe } = notes[i];
     return json({ note: safe });
   }
 
   if (request.method === "DELETE") {
-    const body = await request.json().catch(() => ({}));
-    if (!body.editKey) return json({ error: "no editKey" }, 403);
+    if (!(await cooldown())) return json({ error: "slow down" }, 429);
+    if (!(await hourlyLimit())) return json({ error: "rate limited" }, 429);
 
-    const keyHash = await sha256(body.editKey);
-    if (keyHash !== notes[idx].keyHash) return json({ error: "forbidden" }, 403);
+    let body = {};
+    try { body = await request.json(); } catch {}
 
-    notes.splice(idx, 1);
-    await save(notes);
+    const editKey = (body.editKey || "").toString();
+    if (!editKey) return json({ error: "missing editKey" }, 403);
+
+    const notes = await loadNotes();
+    const i = notes.findIndex(n => n.id === id);
+    if (i === -1) return json({ error: "not found" }, 404);
+
+    const keyHash = await sha256Hex(editKey);
+    if (keyHash !== notes[i].keyHash) return json({ error: "forbidden" }, 403);
+
+    notes.splice(i, 1);
+    await saveNotes(notes);
+
     return json({ ok: true });
   }
 
