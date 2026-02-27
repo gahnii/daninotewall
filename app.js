@@ -1,8 +1,5 @@
 /* =========================
-   Sounds (click / bgm) — hover disabled
-   Notes:
-   - Browsers require a user gesture before audio can start.
-   - We keep everything anonymous/local (sound preference in localStorage).
+   fuhhhh
    ========================= */
 
 const SOUND_STORE = "noteWallSound_v1"; // "on" | "off"
@@ -19,12 +16,12 @@ SFX.click.preload = "auto";
 SFX.bgm.preload   = "auto";
 SFX.bgm.loop = true;
 
-// volumes (tweak if you want)
+// volumes (tweaksettings)
 SFX.click.volume = 0.55;
 SFX.bgm.volume   = 0.25;
 
 function updateSoundButton(){
-  // btnSound is declared later; only call after DOM is ready.
+  // btnSound is declared later
   if(typeof btnSound === "undefined" || !btnSound) return;
   btnSound.textContent = soundEnabled ? "sound: on" : "sound: off";
   btnSound.classList.toggle("soundOn", soundEnabled);
@@ -62,7 +59,7 @@ function setSound(on){
   if(!soundEnabled){
     bgmStop();
   }else{
-    // Will either start now or wait for first gesture hook
+    // will start after click
     bgmPlaySafe();
   }
 }
@@ -98,21 +95,15 @@ function installUiSounds(){
     el.addEventListener("click", playClick);
   }
 
-  // Note interactions: double-click to edit also gets a click tick
+  // note interactions: double-click to edit also gets a click tick
   if(stage){
     stage.addEventListener("dblclick", () => playClick());
   }
 }
 
-// app.js — Pixel Note Wall (grid + ownership)
+// app.js — pixel note wall (grid + ownership)
 //
-// Goals:
-// - Public board UX (everyone can see everything)
-// - You can ONLY move/edit/delete notes you created (anonymous editKey)
-// - Notes snap to grid so you can't cover/block other notes
 //
-// This file works even before API exists: it runs offline (no persistence).
-// When you add the Worker API, it will start polling /api/notes and syncing.
 
 const API_BASE = "/api";
 const POLL_MS = 2000;
@@ -127,7 +118,7 @@ const GRID = 24; // px per cell
 const NOTE_W = 240;
 const NOTE_H = 132;
 
-// If true: do strict grid occupancy; server should enforce too.
+// if true: do strict grid occupancy; server should enforce too
 const ENFORCE_NO_OVERLAP = true;
 
 const stage = document.getElementById("stage");
@@ -168,8 +159,8 @@ let pollTimer = null;
 let saveTimer = null;
 
 /* =========================
-   Ownership storage
-   We store editKeys locally:
+   ownership storage
+   editkeys stored locally
    localStorage["noteKeys"] = { [noteId]: editKey }
    ========================= */
 const KEY_STORE = "noteKeys_v1";
@@ -199,14 +190,14 @@ function isOwner(noteId){
 }
 
 /* =========================
-   Helpers
+   helpmeeee
    ========================= */
 function uid(){
   return "n_" + Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 function randKey(){
-  // editKey should be unguessable; this is fine for prototype.
-  // server should also generate/rotate if you want.
+  // editKey unguessable
+  // generate
   return "k_" + crypto.getRandomValues(new Uint32Array(4)).join("_") + "_" + Date.now().toString(16);
 }
 function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
@@ -231,7 +222,7 @@ function snap(n){
 }
 
 function cellKeyFromXY(x,y){
-  // occupancy by top-left snapped coordinate
+  // fah
   return `${snap(x)}:${snap(y)}`;
 }
 
@@ -245,7 +236,7 @@ function buildOccupancy(exceptId=null){
 }
 
 function findFreeCellNear(x,y, exceptId=null){
-  // Spiral search around the desired snapped position.
+  // spiral
   const targetX = clamp(snap(x), 0, STAGE_W - NOTE_W);
   const targetY = clamp(snap(y), 0, STAGE_H - NOTE_H);
 
@@ -288,12 +279,12 @@ function findFreeCellNear(x,y, exceptId=null){
     }
   }
 
-  // If truly full, just return the snapped target; server can reject creation.
+  // if truly full
   return {x:targetX, y:targetY};
 }
 
 /* =========================
-   Drawer
+   drawer
    ========================= */
 function renderSwatches(){
   colorRow.innerHTML = "";
@@ -354,7 +345,7 @@ function closeDrawer(){
 }
 
 /* =========================
-   Rendering
+   rendering
    ========================= */
 function ensureNoteEl(n){
   let el = noteEls.get(n.id);
@@ -418,7 +409,7 @@ function rerenderAll(){
 }
 
 /* =========================
-   Local state changes
+   local state changes
    ========================= */
 function updateLocal(id, patch){
   const i = notes.findIndex(n => n.id === id);
@@ -427,7 +418,7 @@ function updateLocal(id, patch){
 }
 
 function replaceFromServer(serverNotes){
-  // Keep local editKeys; just replace note contents/positions/colors from server.
+  // keep local editkeys
   notes = (serverNotes || []).map(n => ({
     id: n.id,
     text: n.text ?? "",
@@ -438,7 +429,7 @@ function replaceFromServer(serverNotes){
   }));
   rerenderAll();
 
-  // If the drawer is open on a note that disappeared, close it
+  // if the drawer is open on a note that disappeared close
   if(selectedId && !notes.some(n=>n.id===selectedId)) closeDrawer();
 }
 
@@ -482,7 +473,7 @@ async function apiDeleteNote(id, editKey){
 }
 
 /* =========================
-   Polling
+   polling
    ========================= */
 async function pollOnce(){
   try{
@@ -503,7 +494,7 @@ function startPolling(){
 }
 
 /* =========================
-   Dragging (OWN notes only) + grid snap + no overlap
+   dragging
    ========================= */
 function installDrag(el){
   let dragging = false;
@@ -542,7 +533,7 @@ function installDrag(el){
     const ny = clamp(baseY + dy, 0, STAGE_H - NOTE_H);
 
     updateLocal(id, { x: nx, y: ny });
-    // during drag, don't snap yet (feels smoother)
+    // during drag, don't snap yet
     syncNoteEl(id);
   };
 
@@ -568,7 +559,7 @@ function installDrag(el){
 }
 
 /* =========================
-   Saving (debounced)
+   save
    ========================= */
 function queueSave(id){
   if(!id) return;
@@ -592,7 +583,7 @@ async function saveNow(id){
     const payload = { text:n.text, x:snap(n.x), y:snap(n.y), color:n.color, editKey };
     const data = await apiUpdateNote(id, payload);
 
-    // If server returns canonical note, merge it (and keep our key)
+    // if serv returns
     if(data?.note?.id){
       const s = data.note;
       updateLocal(id, {
@@ -614,7 +605,7 @@ async function saveNow(id){
 }
 
 /* =========================
-   UI actions
+   ui actions
    ========================= */
 btnNew.addEventListener("click", async () => {
   // propose a spot near top-left-ish and find a free cell
@@ -655,8 +646,7 @@ btnNew.addEventListener("click", async () => {
       editKey
     });
 
-    // If server assigns a new id/key, reconcile.
-    // (Recommended: server keeps client id, but this supports either.)
+    // slime me out
     if(data?.note?.id){
       const s = data.note;
       const newId = s.id;
