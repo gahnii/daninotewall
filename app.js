@@ -743,7 +743,6 @@ btnNew.addEventListener("click", async () => {
 });
 
 btnCenter.addEventListener("click",()=>{playClick();fitCam();toast("center");});
-});
 
 btnRefresh.addEventListener("click", () => {
   pollOnce();
