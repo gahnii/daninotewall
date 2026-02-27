@@ -324,3 +324,6 @@ body{
 
 /* mobile touch fixes */
 .stage, .note{touch-action:none; -webkit-touch-callout:none;}
+
+
+.stage{transform-origin:0 0;}

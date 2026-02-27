@@ -108,6 +108,38 @@ const NOTE_H = 132;
 const ENFORCE_NO_OVERLAP = true;
 
 const stage = document.getElementById("stage");
+
+const stageWrap = document.querySelector(".stageWrap");
+
+let cam = { x: 0, y: 0, s: 1 };
+function camClamp(){
+  if(!stageWrap) return;
+  const r = stageWrap.getBoundingClientRect();
+  const minX = Math.min(0, r.width - STAGE_W*cam.s);
+  const minY = Math.min(0, r.height - STAGE_H*cam.s);
+  cam.x = clamp(cam.x, minX, 0);
+  cam.y = clamp(cam.y, minY, 0);
+}
+function applyCam(){
+  camClamp();
+  stage.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.s})`;
+}
+function fitCam(){
+  if(!stageWrap) return;
+  const r = stageWrap.getBoundingClientRect();
+  const s = Math.min(1, (r.width-24)/STAGE_W, (r.height-24)/STAGE_H);
+  cam.s = clamp(s, 0.35, 1);
+  cam.x = (r.width - STAGE_W*cam.s)/2;
+  cam.y = (r.height - STAGE_H*cam.s)/2;
+  applyCam();
+}
+function screenToStage(clientX, clientY){
+  const r = stageWrap.getBoundingClientRect();
+  return {
+    x: (clientX - r.left - cam.x)/cam.s,
+    y: (clientY - r.top  - cam.y)/cam.s
+  };
+}
 const statusEl = document.getElementById("status");
 const toastEl = document.getElementById("toast");
 
@@ -446,7 +478,75 @@ async function pollOnce(){
 function startPolling(){
   if(pollTimer) clearInterval(pollTimer);
   pollOnce();
-  pollTimer = setInterval(pollOnce, POLL_MS);
+  pollTimer = 
+function installPanZoom(){
+  if(!stageWrap) return;
+  let panning=false;
+  let panStartX=0, panStartY=0, camStartX=0, camStartY=0;
+
+  stageWrap.addEventListener("pointerdown",(e)=>{
+    if(drawer && drawer.classList.contains("show")) return;
+    if(e.pointerType==="mouse" && e.button!==0) return;
+    if(e.target.closest && e.target.closest(".note")) return;
+    panning=true;
+    panStartX=e.clientX; panStartY=e.clientY;
+    camStartX=cam.x; camStartY=cam.y;
+    stageWrap.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+  },{passive:false});
+
+  stageWrap.addEventListener("pointermove",(e)=>{
+    if(!panning) return;
+    const dx=e.clientX-panStartX;
+    const dy=e.clientY-panStartY;
+    cam.x = camStartX + dx;
+    cam.y = camStartY + dy;
+    applyCam();
+  },{passive:true});
+
+  stageWrap.addEventListener("pointerup",()=>{panning=false;},{passive:true});
+  stageWrap.addEventListener("pointercancel",()=>{panning=false;},{passive:true});
+
+  let pinch=null;
+  stageWrap.addEventListener("touchstart",(e)=>{
+    if(e.touches.length===2){
+      const t1=e.touches[0], t2=e.touches[1];
+      const dx=t1.clientX-t2.clientX, dy=t1.clientY-t2.clientY;
+      const dist=Math.hypot(dx,dy);
+      const midX=(t1.clientX+t2.clientX)/2;
+      const midY=(t1.clientY+t2.clientY)/2;
+      const anchor = screenToStage(midX, midY);
+      pinch={dist, s:cam.s, ax:anchor.x, ay:anchor.y, mx:midX, my:midY};
+      e.preventDefault();
+    }
+  },{passive:false});
+
+  stageWrap.addEventListener("touchmove",(e)=>{
+    if(!pinch || e.touches.length!==2) return;
+    const t1=e.touches[0], t2=e.touches[1];
+    const dx=t1.clientX-t2.clientX, dy=t1.clientY-t2.clientY;
+    const dist=Math.hypot(dx,dy);
+    const midX=(t1.clientX+t2.clientX)/2;
+    const midY=(t1.clientY+t2.clientY)/2;
+
+    const ns = clamp(pinch.s * (dist/pinch.dist), 0.35, 2.2);
+    cam.s = ns;
+
+    const r = stageWrap.getBoundingClientRect();
+    const sx = midX - r.left;
+    const sy = midY - r.top;
+
+    cam.x = sx - pinch.ax * cam.s;
+    cam.y = sy - pinch.ay * cam.s;
+    applyCam();
+    e.preventDefault();
+  },{passive:false});
+
+  stageWrap.addEventListener("touchend",(e)=>{ if(e.touches.length<2) pinch=null; },{passive:true});
+  stageWrap.addEventListener("touchcancel",()=>{pinch=null;},{passive:true});
+}
+
+setInterval(pollOnce, POLL_MS);
 }
 
 function installDrag(el){
@@ -478,8 +578,8 @@ function installDrag(el){
   const moveTo=(clientX,clientY)=>{
     if(!dragging) return;
     const id=el.dataset.id;
-    const dx=clientX-startX;
-    const dy=clientY-startY;
+    const dx=(clientX-startX)/cam.s;
+    const dy=(clientY-startY)/cam.s;
     if(!moved && (Math.abs(dx)>6 || Math.abs(dy)>6)) moved=true;
 
     const nx=clamp(baseX+dx,0,STAGE_W-NOTE_W);
@@ -642,8 +742,7 @@ btnNew.addEventListener("click", async () => {
   }
 });
 
-btnCenter.addEventListener("click", () => {
-  toast("stage is fixed (prototype)");
+btnCenter.addEventListener("click",()=>{playClick();fitCam();toast("center");});
 });
 
 btnRefresh.addEventListener("click", () => {
@@ -727,3 +826,6 @@ window.addEventListener("keydown", (e) => {
   setStatus("offline / api not ready");
   startPolling();
 })();
+
+try{fitCam();installPanZoom();}catch(e){}
+window.addEventListener("resize",()=>{fitCam();});
