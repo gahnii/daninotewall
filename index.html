@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>dani note wall</title>
+
+  <!-- polkka dotto -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="dot" aria-hidden="true"></div>
+      <div class="titles">
+        <div class="title">dani note wall</div>
+        <div class="subtitle">public board • grid snapped • world is yours</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="btnNew" class="btn primary">new note</button>
+      <button id="btnCenter" class="btn">center</button>
+      <button id="btnRefresh" class="btn">refresh</button>
+      <button id="btnSound" class="btn soundOff">sound: off</button>
+      <div id="status" class="status">booting...</div>
+    </div>
+  </header>
+
+  <main class="stageWrap">
+    <div class="legend">
+      <div class="chip"><span class="k">place</span><span class="v">notes on the grid</span></div>
+      <div class="chip"><span class="k">edit</span><span class="v">you can edit your own notes</span></div>
+      <div class="chip"><span class="k">lock</span><span class="v">oothers are protected</span></div>
+    </div>
+
+    <div id="stage" class="stage" aria-label="notes canvas"></div>
+  </main>
+
+  <!-- editor panel -->
+  <aside id="drawer" class="drawer" aria-hidden="true">
+    <div class="drawerHead">
+      <div class="drawerTitle">edit note</div>
+      <button id="btnCloseDrawer" class="iconBtn" aria-label="close">X</button>
+    </div>
+
+    <div class="drawerBody">
+      <div id="ownerTag" class="ownerTag" aria-hidden="true"></div>
+
+      <label class="label">text</label>
+      <textarea id="editText" class="textarea" rows="9" placeholder="type..."></textarea>
+
+      <div class="row">
+        <div class="col">
+          <label class="label">color</label>
+          <div id="colorRow" class="colorRow"></div>
+        </div>
+        <div class="col">
+          <label class="label">actions</label>
+          <div class="btnRow">
+            <button id="btnDelete" class="btn danger">delete</button>
+            <button id="btnDone" class="btn primary">done</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="meta">
+        <div id="metaId" class="metaLine"></div>
+        <div id="metaTime" class="metaLine"></div>
+        <div id="metaPos" class="metaLine"></div>
+      </div>
+
+      <div class="hint">
+        notes are placed on a grid so you can’t cover other notes.
+        when the api is live, ownership is enforced server‑side (editKey).
+      </div>
+    </div>
+  </aside>
+
+  <div id="toast" class="toast" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
