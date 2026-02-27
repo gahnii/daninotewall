@@ -22,7 +22,6 @@ export async function onRequest({ request, env }) {
     s = s.replace(/[^a-z0-9 ]+/g," ").replace(/\s+/g," ").trim();
     return s;
   }
-
   function squeeze(s){ return s.replace(/([a-z])\1{2,}/g,"$1$1"); }
   function joined(s){ return s.replace(/\s+/g,""); }
 
@@ -107,6 +106,7 @@ export async function onRequest({ request, env }) {
     const { id, text="", x, y, color="note1", editKey } = body;
 
     if(!id || !editKey) return json({error:"missing id/editKey"},400);
+    if(!Number.isFinite(Number(x)) || !Number.isFinite(Number(y))) return json({error:"bad coords"},400);
     if(await banned(text)) return json({error:"blocked content"},403);
 
     const notes = await load();
@@ -114,9 +114,9 @@ export async function onRequest({ request, env }) {
 
     const note = {
       id,
-      text: text.slice(0, MAX_LEN),
-      x: snap(clamp(x,0,STAGE_W-NOTEW)),
-      y: snap(clamp(y,0,STAGE_H-NOTEH)),
+      text: String(text).slice(0, MAX_LEN),
+      x: snap(clamp(Number(x),0,STAGE_W-NOTEW)),
+      y: snap(clamp(Number(y),0,STAGE_H-NOTEH)),
       color,
       updatedAt: now(),
       keyHash: await sha256(editKey)
