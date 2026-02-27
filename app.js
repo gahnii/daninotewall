@@ -136,6 +136,7 @@ const COLORS = [
 ];
 
 let notes = [];
+let __mobileReadyAt = performance.now() + 700;
 let noteEls = new Map();
 let selectedId = null;
 let selectedColor = "note1";
@@ -497,6 +498,7 @@ function installDrag(el){
     if(!n) return;
 
     if(!moved && (performance.now()-downAt)<320){
+      if(performance.now() < __mobileReadyAt) return;
       openDrawer(id);
       return;
     }
@@ -720,6 +722,7 @@ window.addEventListener("keydown", (e) => {
     { id: b, text:"this one is locked.\nyou can read but not move.", x: snap(432), y: snap(264), color:"note1", updatedAt:"—" },
   ];
   rerenderAll();
+  closeDrawer();
 
   setStatus("offline / api not ready");
   startPolling();
