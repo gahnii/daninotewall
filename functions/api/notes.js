@@ -9,6 +9,8 @@ export async function onRequest({ request, env }) {
   const HOURLY_MAX = 120;
   const COOLDOWN_S = 3;
 
+  const STRIKES_PER_DAY = 8;
+
   const json = (obj, status = 200) =>
     new Response(JSON.stringify(obj), {
       status,
@@ -26,6 +28,44 @@ export async function onRequest({ request, env }) {
   function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
   function snap(n) { return Math.round(n / GRID) * GRID; }
   function nowISO() { return new Date().toISOString(); }
+  function dayKey() { return new Date().toISOString().slice(0, 10); }
+
+  function fold(s) {
+    s = (s || "").toString().toLowerCase();
+    s = s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+    s = s.replace(/[\u200B-\u200D\uFEFF]/g, "");
+    s = s.replace(/[@]/g, "a")
+         .replace(/[!¡]/g, "i")
+         .replace(/[|]/g, "i")
+         .replace(/[0]/g, "o")
+         .replace(/[1]/g, "i")
+         .replace(/[3]/g, "e")
+         .replace(/[4]/g, "a")
+         .replace(/[5]/g, "s")
+         .replace(/[7]/g, "t")
+         .replace(/[$]/g, "s")
+         .replace(/[+]/g, "t");
+    s = s.replace(/[_\-.]/g, " ");
+    s = s.replace(/[^a-z0-9 ]+/g, " ");
+    s = s.replace(/\s+/g, " ").trim();
+    return s;
+  }
+
+  function squeezeLetters(s) {
+    return s.replace(/([a-z])\1{2,}/g, "$1$1");
+  }
+
+  function joined(s) {
+    return s.replace(/\s+/g, "");
+  }
+
+  function hasLinkLike(raw) {
+    const t = (raw || "").toString().toLowerCase();
+    if (t.includes("http://") || t.includes("https://") || t.includes("www.")) return true;
+    if (t.includes("discord.gg") || t.includes("discord.com/invite") || t.includes("invite.gg")) return true;
+    if (/\b(?:t\.me|telegram\.me)\b/.test(t)) return true;
+    return false;
+  }
 
   async function sha256Hex(str) {
     const data = new TextEncoder().encode(str);
@@ -33,14 +73,18 @@ export async function onRequest({ request, env }) {
     return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
   }
 
-  async function loadNotes() {
-    const raw = await env.NOTEWALL.get("wall:notes");
-    if (!raw) return [];
-    try { return JSON.parse(raw) || []; } catch { return []; }
-  }
+  const BANNED_HASHES = new Set([
+  ]);
 
-  async function saveNotes(notes) {
-    await env.NOTEWALL.put("wall:notes", JSON.stringify(notes));
+  async function bannedHit(rawText) {
+    if (!BANNED_HASHES.size) return false;
+    const a = fold(rawText);
+    const b = squeezeLetters(a);
+    const c = joined(b);
+    const ha = await sha256Hex(a);
+    const hb = await sha256Hex(b);
+    const hc = await sha256Hex(c);
+    return BANNED_HASHES.has(ha) || BANNED_HASHES.has(hb) || BANNED_HASHES.has(hc);
   }
 
   async function cooldown() {
@@ -59,12 +103,31 @@ export async function onRequest({ request, env }) {
   }
 
   async function dailyCreateCap() {
-    const day = new Date().toISOString().slice(0, 10);
+    const day = dayKey();
     const k = `cap:create:${ip}:${day}`;
     const cur = Number((await env.NOTEWALL.get(k)) || "0");
     if (cur >= MAX_PER_DAY) return false;
     await env.NOTEWALL.put(k, String(cur + 1), { expirationTtl: 60 * 60 * 48 });
     return true;
+  }
+
+  async function addStrikeAndCheck() {
+    const day = dayKey();
+    const k = `strike:${ip}:${day}`;
+    const cur = Number((await env.NOTEWALL.get(k)) || "0");
+    const next = cur + 1;
+    await env.NOTEWALL.put(k, String(next), { expirationTtl: 60 * 60 * 48 });
+    return next <= STRIKES_PER_DAY;
+  }
+
+  async function loadNotes() {
+    const raw = await env.NOTEWALL.get("wall:notes");
+    if (!raw) return [];
+    try { return JSON.parse(raw) || []; } catch { return []; }
+  }
+
+  async function saveNotes(notes) {
+    await env.NOTEWALL.put("wall:notes", JSON.stringify(notes));
   }
 
   if (request.method === "GET") {
@@ -85,16 +148,21 @@ export async function onRequest({ request, env }) {
     const editKey = (body.editKey || "").toString();
     const text = (body.text || "").toString().slice(0, MAX_LEN);
     const color = (body.color || "note1").toString().slice(0, 16);
-
     const x = Number(body.x);
     const y = Number(body.y);
 
     if (!id || !editKey) return json({ error: "missing id/editKey" }, 400);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return json({ error: "bad coords" }, 400);
 
+    if (hasLinkLike(text) || await bannedHit(text)) {
+      const ok = await addStrikeAndCheck();
+      return json({ error: ok ? "blocked content" : "blocked (too many attempts today)" }, 403);
+    }
+
     const notes = await loadNotes();
-    if (notes.length >= MAX_NOTES) return json({ error: "wall full" }, 409);
     if (notes.some(n => n.id === id)) return json({ error: "id exists" }, 409);
+
+    if (notes.length >= MAX_NOTES) notes.pop();
 
     const note = {
       id,
