@@ -1,87 +1,65 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>dani note wall</title>
-
-  <!-- polkka dotto -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <div class="dot" aria-hidden="true"></div>
-      <div class="titles">
+      <span class="dot"></span>
+      <div class="brandtext">
         <div class="title">dani note wall</div>
-        <div class="subtitle">public board • grid snapped • world is yours</div>
+        <div class="subtitle" id="statusLine">public board • tap to edit • drag to move • pinch zoom</div>
       </div>
     </div>
 
     <div class="actions">
-      <button id="btnNew" class="btn primary">new note</button>
-      <button id="btnCenter" class="btn">center</button>
-      <button id="btnRefresh" class="btn">refresh</button>
-      <button id="btnSound" class="btn soundOff">sound: off</button>
-      <div id="status" class="status">booting...</div>
+      <button class="btn" id="btnNew">new note</button>
+      <button class="btn" id="btnCenter">center</button>
+      <button class="btn" id="btnRefresh">refresh</button>
     </div>
   </header>
 
   <main class="stageWrap">
-    <div class="legend">
-      <div class="chip"><span class="k">place</span><span class="v">notes on the grid</span></div>
-      <div class="chip"><span class="k">edit</span><span class="v">you can edit your own notes</span></div>
-      <div class="chip"><span class="k">lock</span><span class="v">oothers are protected</span></div>
+    <div id="stage" class="stage" aria-label="note board">
+      <div id="world" class="world"></div>
     </div>
-
-    <div id="stage" class="stage" aria-label="notes canvas"></div>
   </main>
 
-  <!-- editor panel -->
-  <aside id="drawer" class="drawer" aria-hidden="true">
-    <div class="drawerHead">
-      <div class="drawerTitle">edit note</div>
-      <button id="btnCloseDrawer" class="iconBtn" aria-label="close">X</button>
-    </div>
+  <div id="toast" class="toast" hidden></div>
 
-    <div class="drawerBody">
-      <div id="ownerTag" class="ownerTag" aria-hidden="true"></div>
-
-      <label class="label">text</label>
-      <textarea id="editText" class="textarea" rows="9" placeholder="type..."></textarea>
-
-      <div class="row">
-        <div class="col">
-          <label class="label">color</label>
-          <div id="colorRow" class="colorRow"></div>
-        </div>
-        <div class="col">
-          <label class="label">actions</label>
-          <div class="btnRow">
-            <button id="btnDelete" class="btn danger">delete</button>
-            <button id="btnDone" class="btn primary">done</button>
-          </div>
-        </div>
+  <div id="modal" class="modal" hidden>
+    <div class="sheet">
+      <div class="sheetHead">
+        <div class="sheetTitle">edit note</div>
+        <button class="iconBtn" id="btnClose" aria-label="Close">✕</button>
       </div>
 
-      <div class="meta">
-        <div id="metaId" class="metaLine"></div>
-        <div id="metaTime" class="metaLine"></div>
-        <div id="metaPos" class="metaLine"></div>
+      <textarea id="editText" class="editArea" maxlength="500" placeholder="write something…"></textarea>
+
+      <div class="row">
+        <label class="label">color</label>
+        <select id="editColor" class="select">
+          <option value="note1">note1</option>
+          <option value="note2">note2</option>
+          <option value="note3">note3</option>
+        </select>
+      </div>
+
+      <div class="sheetActions">
+        <button class="btn danger" id="btnDelete">delete</button>
+        <div class="spacer"></div>
+        <button class="btn" id="btnSave">save</button>
       </div>
 
       <div class="hint">
-        notes are placed on a grid so you can’t cover other notes.
-        when the api is live, ownership is enforced server‑side (editKey).
+        moving is public. editing/deleting requires your local key (same device/browser).
       </div>
     </div>
-  </aside>
-
-  <div id="toast" class="toast" aria-live="polite" aria-atomic="true"></div>
+  </div>
 
   <script src="./app.js"></script>
 </body>
