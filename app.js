@@ -27,8 +27,12 @@ let noteElById = new Map();
 
 let view = { x: 0, y: 0, s: 1 };
 
-let active = null; // {type:'pan'|'drag', id?, startX, startY, vx, vy, nx, ny, pointerId}
-let pinch = null;  // {id1,id2, startDist, startScale, startMid, startView}
+let active = null;
+let pinch = null;
+
+let tapCandidate = null;
+const TAP_MS = 260;
+const TAP_PX = 8;
 
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 function snap(n) { return Math.round(n / GRID) * GRID; }
@@ -160,8 +164,7 @@ async function createNote() {
       body: JSON.stringify(payload),
     });
 
-    const n = data.note;
-    notes.unshift(n);
+    notes.unshift(data.note);
     renderAll();
     toast("created");
   } catch (e) {
@@ -174,7 +177,7 @@ function openModal(note) {
   modal.dataset.id = note.id;
   editText.value = note.text || "";
   editColor.value = note.color || "note1";
-  setTimeout(() => editText.focus(), 50);
+  setTimeout(() => editText.focus(), 60);
 }
 
 function closeModal() {
@@ -204,9 +207,8 @@ async function saveEdit() {
       body: JSON.stringify({ editKey, text: nextText, color: nextColor }),
     });
 
-    const updated = data.note;
     const idx = notes.findIndex(n => n.id === id);
-    if (idx !== -1) notes[idx] = updated;
+    if (idx !== -1) notes[idx] = data.note;
     renderAll();
     toast("saved");
     closeModal();
@@ -248,24 +250,20 @@ async function saveMove(id, x, y) {
   }
 }
 
-function getPointerPos(ev) {
-  return { x: ev.clientX, y: ev.clientY };
-}
-
 function noteFromTarget(t) {
   const el = t.closest?.(".note");
-  if (!el) return null;
-  return el.dataset.id;
+  return el ? el.dataset.id : null;
 }
 
 function beginPan(ev) {
-  const p = getPointerPos(ev);
+  const p = { x: ev.clientX, y: ev.clientY };
   active = { type: "pan", pointerId: ev.pointerId, startX: p.x, startY: p.y, vx: view.x, vy: view.y };
   stage.setPointerCapture(ev.pointerId);
+  tapCandidate = null;
 }
 
 function beginDrag(ev, id) {
-  const p = getPointerPos(ev);
+  const p = { x: ev.clientX, y: ev.clientY };
   const w = screenToWorld(p.x, p.y);
   const note = findNote(id);
   if (!note) return;
@@ -276,21 +274,37 @@ function beginDrag(ev, id) {
     pointerId: ev.pointerId,
     startX: p.x,
     startY: p.y,
-    nx: note.x,
-    ny: note.y,
     offX: w.x - note.x,
     offY: w.y - note.y,
   };
-
   stage.setPointerCapture(ev.pointerId);
+
+  tapCandidate = { id, t: performance.now(), x: p.x, y: p.y, pointerId: ev.pointerId };
+}
+
+function onPointerDown(ev) {
+  if (modal && !modal.hidden) return;
+  if (ev.pointerType === "mouse" && ev.button !== 0) return;
+  if (pinch) return;
+
+  const id = noteFromTarget(ev.target);
+  if (id) beginDrag(ev, id);
+  else beginPan(ev);
+
+  ev.preventDefault();
 }
 
 function onPointerMove(ev) {
   if (!active) return;
-
   if (active.pointerId !== ev.pointerId) return;
 
-  const p = getPointerPos(ev);
+  const p = { x: ev.clientX, y: ev.clientY };
+
+  if (tapCandidate && tapCandidate.pointerId === ev.pointerId) {
+    const dx = p.x - tapCandidate.x;
+    const dy = p.y - tapCandidate.y;
+    if (Math.hypot(dx, dy) > TAP_PX) tapCandidate = null;
+  }
 
   if (active.type === "pan") {
     const dx = p.x - active.startX;
@@ -325,11 +339,27 @@ async function endPointer(ev) {
   const finished = active;
   active = null;
 
+  if (tapCandidate && tapCandidate.pointerId === ev.pointerId) {
+    const dt = performance.now() - tapCandidate.t;
+    const id = tapCandidate.id;
+    tapCandidate = null;
+    if (dt <= TAP_MS) {
+      const note = findNote(id);
+      if (note) openModal(note);
+      return;
+    }
+  }
+
+  tapCandidate = null;
+
   if (finished.type === "drag") {
     const note = findNote(finished.id);
     if (note) await saveMove(note.id, note.x, note.y);
   }
 }
+
+function onPointerUp(ev) { endPointer(ev); }
+function onPointerCancel(ev) { endPointer(ev); }
 
 function dist(a, b) {
   const dx = a.x - b.x, dy = a.y - b.y;
@@ -340,56 +370,32 @@ function mid(a, b) {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
-function onPointerDown(ev) {
-  if (ev.pointerType === "mouse" && ev.button !== 0) return;
-
-  const id = noteFromTarget(ev.target);
-
-  if (pinch) return;
-
-  if (ev.isPrimary && ev.pointerType !== "mouse") {
-    // allow second finger to start pinch later
-  }
-
-  if (id) beginDrag(ev, id);
-  else beginPan(ev);
-
-  ev.preventDefault();
-}
-
-function onPointerUp(ev) {
-  endPointer(ev);
-}
-
-function onPointerCancel(ev) {
-  endPointer(ev);
-}
-
 function onTouchStart(ev) {
+  if (modal && !modal.hidden) return;
   if (ev.touches.length === 2) {
     const t1 = ev.touches[0], t2 = ev.touches[1];
     pinch = {
       startDist: dist({ x: t1.clientX, y: t1.clientY }, { x: t2.clientX, y: t2.clientY }),
       startScale: view.s,
-      startMid: mid({ x: t1.clientX, y: t1.clientY }, { x: t2.clientX, y: t2.clientY }),
       startView: { x: view.x, y: view.y, s: view.s },
     };
+    active = null;
+    tapCandidate = null;
   }
 }
 
 function onTouchMove(ev) {
   if (!pinch || ev.touches.length !== 2) return;
   const t1 = ev.touches[0], t2 = ev.touches[1];
+
   const curDist = dist({ x: t1.clientX, y: t1.clientY }, { x: t2.clientX, y: t2.clientY });
   const ratio = curDist / pinch.startDist;
 
   const newScale = clamp(pinch.startScale * ratio, 0.6, 2.2);
 
-  const curMid = mid({ x: t1.clientX, y: t1.clientY }, { x: t2.clientX, y: t2.clientY });
-
   const rect = stage.getBoundingClientRect();
-  const midX = curMid.x - rect.left;
-  const midY = curMid.y - rect.top;
+  const midX = (t1.clientX + t2.clientX) / 2 - rect.left;
+  const midY = (t1.clientY + t2.clientY) / 2 - rect.top;
 
   const worldX = (midX - pinch.startView.x) / pinch.startView.s;
   const worldY = (midY - pinch.startView.y) / pinch.startView.s;
@@ -406,14 +412,6 @@ function onTouchEnd(ev) {
   if (ev.touches.length < 2) pinch = null;
 }
 
-function onTap(ev) {
-  const id = noteFromTarget(ev.target);
-  if (!id) return;
-  const note = findNote(id);
-  if (!note) return;
-  openModal(note);
-}
-
 btnNew.addEventListener("click", createNote);
 btnCenter.addEventListener("click", () => { centerView(); toast("centered"); });
 btnRefresh.addEventListener("click", refresh);
@@ -428,8 +426,6 @@ stage.addEventListener("pointerdown", onPointerDown, { passive: false });
 stage.addEventListener("pointermove", onPointerMove, { passive: false });
 stage.addEventListener("pointerup", onPointerUp, { passive: false });
 stage.addEventListener("pointercancel", onPointerCancel, { passive: false });
-
-stage.addEventListener("click", onTap);
 
 stage.addEventListener("touchstart", onTouchStart, { passive: false });
 stage.addEventListener("touchmove", onTouchMove, { passive: false });

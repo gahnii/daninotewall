@@ -4,22 +4,28 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>dani note wall</title>
+
+  <!-- Pixel font (optional). If it doesn't load, it falls back to your system monospace. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <span class="dot"></span>
+      <span class="dot" aria-hidden="true"></span>
       <div class="brandtext">
         <div class="title">dani note wall</div>
-        <div class="subtitle" id="statusLine">public board • tap to edit • drag to move • pinch zoom</div>
+        <div class="subtitle" id="statusLine">public board • pixel • mobile ready</div>
       </div>
     </div>
 
     <div class="actions">
-      <button class="btn" id="btnNew">new note</button>
-      <button class="btn" id="btnCenter">center</button>
-      <button class="btn" id="btnRefresh">refresh</button>
+      <button class="btn" id="btnNew" type="button">new note</button>
+      <button class="btn" id="btnCenter" type="button">center</button>
+      <button class="btn" id="btnRefresh" type="button">refresh</button>
     </div>
   </header>
 
@@ -32,16 +38,16 @@
   <div id="toast" class="toast" hidden></div>
 
   <div id="modal" class="modal" hidden>
-    <div class="sheet">
+    <div class="sheet" role="dialog" aria-modal="true" aria-label="Edit note">
       <div class="sheetHead">
         <div class="sheetTitle">edit note</div>
-        <button class="iconBtn" id="btnClose" aria-label="Close">✕</button>
+        <button class="iconBtn" id="btnClose" type="button" aria-label="Close">X</button>
       </div>
 
-      <textarea id="editText" class="editArea" maxlength="500" placeholder="write something…"></textarea>
+      <textarea id="editText" class="editArea" maxlength="500" placeholder="write…"></textarea>
 
       <div class="row">
-        <label class="label">color</label>
+        <label class="label" for="editColor">color</label>
         <select id="editColor" class="select">
           <option value="note1">note1</option>
           <option value="note2">note2</option>
@@ -50,13 +56,13 @@
       </div>
 
       <div class="sheetActions">
-        <button class="btn danger" id="btnDelete">delete</button>
+        <button class="btn danger" id="btnDelete" type="button">delete</button>
         <div class="spacer"></div>
-        <button class="btn" id="btnSave">save</button>
+        <button class="btn" id="btnSave" type="button">save</button>
       </div>
 
       <div class="hint">
-        moving is public. editing/deleting requires your local key (same device/browser).
+        tap note to edit • drag note to move • pinch to zoom • drag empty space to pan
       </div>
     </div>
   </div>
