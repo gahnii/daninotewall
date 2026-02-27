@@ -2,11 +2,17 @@ export async function onRequest({ request, env, params }) {
   const MAX_LEN = 500;
   const id = params.id;
 
+  const NOTEW = 240, NOTEH = 132, GRID = 24;
+  const STAGE_W = 3000, STAGE_H = 2000;
+
   const json = (obj, status = 200) =>
     new Response(JSON.stringify(obj), {
       status,
       headers: { "content-type": "application/json", "cache-control": "no-store" }
     });
+
+  function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
+  function snap(n){ return Math.round(n / GRID) * GRID; }
 
   function fold(s){
     s = (s||"").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"");
@@ -16,7 +22,6 @@ export async function onRequest({ request, env, params }) {
     s = s.replace(/[^a-z0-9 ]+/g," ").replace(/\s+/g," ").trim();
     return s;
   }
-
   function squeeze(s){ return s.replace(/([a-z])\1{2,}/g,"$1$1"); }
   function joined(s){ return s.replace(/\s+/g,""); }
 
@@ -97,15 +102,28 @@ export async function onRequest({ request, env, params }) {
 
   if(request.method === "PUT"){
     const body = await request.json();
-    if(!body.editKey) return json({error:"no editKey"},403);
-    if(await sha256(body.editKey) !== notes[idx].keyHash)
-      return json({error:"forbidden"},403);
 
-    const nextText = (body.text ?? notes[idx].text).slice(0,MAX_LEN);
-    if(await banned(nextText)) return json({error:"blocked content"},403);
+    const wantsTextOrColor = body.text !== undefined || body.color !== undefined;
+    const editKey = (body.editKey || "");
 
-    notes[idx].text = nextText;
-    notes[idx].color = body.color ?? notes[idx].color;
+    if(wantsTextOrColor){
+      if(!editKey) return json({error:"no editKey"},403);
+      if(await sha256(editKey) !== notes[idx].keyHash) return json({error:"forbidden"},403);
+
+      const nextText = String(body.text ?? notes[idx].text).slice(0, MAX_LEN);
+      if(await banned(nextText)) return json({error:"blocked content"},403);
+
+      notes[idx].text = nextText;
+      notes[idx].color = body.color ?? notes[idx].color;
+    }
+
+    const hasX = Number.isFinite(Number(body.x));
+    const hasY = Number.isFinite(Number(body.y));
+    if(hasX && hasY){
+      notes[idx].x = snap(clamp(Number(body.x),0,STAGE_W-NOTEW));
+      notes[idx].y = snap(clamp(Number(body.y),0,STAGE_H-NOTEH));
+    }
+
     notes[idx].updatedAt = new Date().toISOString();
 
     await save(notes);
