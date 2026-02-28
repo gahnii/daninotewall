@@ -380,34 +380,22 @@ body{
 .stageWrap.panning, #wrap.panning, .wrap.panning{ cursor: grabbing; }
 
 
-/* ===== mobile top bar fit ===== */
+/* ===== mobile topbar scroll instead of shrink ===== */
 @media (max-width: 520px){
   .topbar{
-    padding: 10px 10px 8px !important;
-    gap: 8px !important;
-  }
-  .brand{
-    max-width: 52vw !important;
-  }
-  .title{ font-size: 13px !important; line-height: 1.1 !important; }
-  .subtitle{ font-size: 10px !important; line-height: 1.1 !important; }
-
-  .actions{
-    gap: 6px !important;
-    flex-wrap: nowrap !important;
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 6px !important;
-    max-width: 46vw !important;
+    white-space: nowrap;
   }
-  .actions::-webkit-scrollbar{ height: 6px; }
-  .actions::-webkit-scrollbar-thumb{ background: rgba(180,180,200,0.22); border-radius: 999px; }
-
-  .btn{
-    font-size: 10px !important;
-    padding: 8px 10px !important;
-    min-width: auto !important;
-    white-space: nowrap !important;
+  .topbar::-webkit-scrollbar{
+    height: 6px;
+  }
+  .topbar::-webkit-scrollbar-thumb{
+    background: rgba(180,180,200,0.25);
+    border-radius: 999px;
   }
 }
 
+
+
+#stage, .stage{ transform-origin: 0 0; }

@@ -830,3 +830,83 @@ function installPan(){
 
 
 try{installPan();}catch(e){}
+
+
+function installPinchZoom(){
+  const scroller = document.querySelector(".stageWrap") || document.getElementById("stageWrap") || document.getElementById("wrap") || document.querySelector(".wrap");
+  const stageEl = document.getElementById("stage") || document.querySelector(".stage");
+  if(!scroller || !stageEl) return;
+
+  let zoom = 1;
+  const ZMIN = 0.45, ZMAX = 1.8;
+
+  const dist = (t1,t2)=>{
+    const dx=t1.clientX-t2.clientX, dy=t1.clientY-t2.clientY;
+    return Math.hypot(dx,dy);
+  };
+
+  let pinching = null;
+
+  scroller.addEventListener("touchstart",(e)=>{
+    if(e.touches.length!==2) return;
+    const t1=e.touches[0], t2=e.touches[1];
+    const d0 = dist(t1,t2);
+
+    const r = scroller.getBoundingClientRect();
+    const midX = (t1.clientX+t2.clientX)/2 - r.left;
+    const midY = (t1.clientY+t2.clientY)/2 - r.top;
+
+    const stageX = (scroller.scrollLeft + midX) / zoom;
+    const stageY = (scroller.scrollTop  + midY) / zoom;
+
+    pinching = { d0, z0: zoom, midX, midY, stageX, stageY };
+    e.preventDefault();
+  }, { passive:false });
+
+  scroller.addEventListener("touchmove",(e)=>{
+    if(!pinching || e.touches.length!==2) return;
+    const t1=e.touches[0], t2=e.touches[1];
+    const d = dist(t1,t2);
+    let nz = pinching.z0 * (d / pinching.d0);
+    nz = Math.max(ZMIN, Math.min(ZMAX, nz));
+
+    zoom = nz;
+    stageEl.style.transform = `scale(${zoom})`;
+
+    const r = scroller.getBoundingClientRect();
+    const midX = (t1.clientX+t2.clientX)/2 - r.left;
+    const midY = (t1.clientY+t2.clientY)/2 - r.top;
+
+    scroller.scrollLeft = pinching.stageX * zoom - midX;
+    scroller.scrollTop  = pinching.stageY * zoom - midY;
+
+    e.preventDefault();
+  }, { passive:false });
+
+  scroller.addEventListener("touchend",(e)=>{
+    if(e.touches.length<2) pinching = null;
+  }, { passive:true });
+
+  scroller.addEventListener("touchcancel",()=>{ pinching=null; }, { passive:true });
+
+  // optional: double-tap empty space to reset zoom
+  let lastTap = 0;
+  scroller.addEventListener("touchend",(e)=>{
+    if(e.touches.length) return;
+    const now = Date.now();
+    const dt = now - lastTap;
+    lastTap = now;
+    if(dt>0 && dt<280){
+      const t = e.changedTouches && e.changedTouches[0];
+      if(!t) return;
+      const target = document.elementFromPoint(t.clientX, t.clientY);
+      if(target && target.closest && target.closest(".note")) return;
+
+      zoom = 1;
+      stageEl.style.transform = "scale(1)";
+    }
+  }, { passive:true });
+}
+
+
+try{installPinchZoom();}catch(e){}
