@@ -347,3 +347,35 @@ body{
 /* touch behavior so dragging works on phones */
 #stage, .stage, .note{ touch-action:none; -webkit-touch-callout:none; }
 
+
+/* ===== scroll / pan across the giant grid ===== */
+.stageWrap, #stageWrap, #wrap, .wrap{
+  overflow: auto !important;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+}
+
+/* make sure the big stage defines scroll size */
+#stage, .stage{
+  width: 3000px;
+  height: 2000px;
+}
+
+/* keep notes draggable without triggering browser panning on the note itself */
+.note{
+  touch-action: none;
+}
+
+/* optional: make scrollbars visible on desktop */
+.stageWrap::-webkit-scrollbar, #stageWrap::-webkit-scrollbar, #wrap::-webkit-scrollbar, .wrap::-webkit-scrollbar{
+  height: 10px;
+  width: 10px;
+}
+.stageWrap::-webkit-scrollbar-thumb, #stageWrap::-webkit-scrollbar-thumb, #wrap::-webkit-scrollbar-thumb, .wrap::-webkit-scrollbar-thumb{
+  background: rgba(180,180,200,0.25);
+  border-radius: 999px;
+}
+
+.stageWrap.panning, #wrap.panning, .wrap.panning{ cursor: grabbing; }
+

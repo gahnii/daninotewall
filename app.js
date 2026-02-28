@@ -792,3 +792,41 @@ window.addEventListener("keydown", (e) => {
   setStatus("offline / api not ready");
   startPolling();
 })();
+
+
+function installPan(){
+  const scroller = document.querySelector(".stageWrap") || document.getElementById("stageWrap") || document.getElementById("wrap") || document.querySelector(".wrap");
+  if(!scroller) return;
+
+  let panning=false;
+  let sx=0, sy=0, sl=0, st=0;
+
+  scroller.addEventListener("pointerdown",(e)=>{
+    if(e.button!=null && e.button!==0) return;
+    if(e.target && e.target.closest && e.target.closest(".note")) return;
+    panning=true;
+    sx=e.clientX; sy=e.clientY;
+    sl=scroller.scrollLeft; st=scroller.scrollTop;
+    scroller.setPointerCapture?.(e.pointerId);
+    scroller.classList.add("panning");
+  });
+
+  scroller.addEventListener("pointermove",(e)=>{
+    if(!panning) return;
+    const dx = e.clientX - sx;
+    const dy = e.clientY - sy;
+    scroller.scrollLeft = sl - dx;
+    scroller.scrollTop  = st - dy;
+  });
+
+  const end=()=>{
+    if(!panning) return;
+    panning=false;
+    scroller.classList.remove("panning");
+  };
+  scroller.addEventListener("pointerup", end);
+  scroller.addEventListener("pointercancel", end);
+}
+
+
+try{installPan();}catch(e){}
