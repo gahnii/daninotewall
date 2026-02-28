@@ -1,145 +1,139 @@
-const SOUND_STORE = "noteWallSound_v1";
+
+/* =========================
+   Sounds (click / hover / bgm)
+   - browsers require a user gesture before audio can play
+   - bgm starts on first interaction when sound is ON
+   ========================= */
+const SOUND_STORE = "noteWallSound_v1"; // "on" | "off"
 let soundEnabled = (localStorage.getItem(SOUND_STORE) || "off") === "on";
-let bgmStarted = false;
-let bgmWanted = soundEnabled;
 
 const SFX = {
   click: new Audio("./assets/click.mp3"),
+  hover: new Audio("./assets/hover.mp3"),
   bgm:   new Audio("./assets/bgm.mp3"),
 };
-
 SFX.click.preload = "auto";
+SFX.hover.preload = "auto";
 SFX.bgm.preload   = "auto";
 SFX.bgm.loop = true;
 
+// volumes
 SFX.click.volume = 0.55;
+SFX.hover.volume = 0.35;
 SFX.bgm.volume   = 0.25;
 
-function updateSoundButton(){
+let bgmStarted = false;
+let lastHoverAt = 0;
 
-  if(typeof btnSound === "undefined" || !btnSound) return;
+function updateSoundButton(){
+  if(!btnSound) return;
   btnSound.textContent = soundEnabled ? "sound: on" : "sound: off";
   btnSound.classList.toggle("soundOn", soundEnabled);
   btnSound.classList.toggle("soundOff", !soundEnabled);
 }
 
-function playClick(){
+function setSound(on){
+  soundEnabled = !!on;
+  localStorage.setItem(SOUND_STORE, soundEnabled ? "on" : "off");
+  updateSoundButton();
+  if(!soundEnabled){
+    try{ SFX.bgm.pause(); }catch{}
+  }else{
+    armBgmStart();
+  }
+}
+
+function playSfx(aud){
   if(!soundEnabled) return;
   try{
-    SFX.click.currentTime = 0;
-    SFX.click.play().catch(()=>{});
+    const a = aud.cloneNode();
+    a.volume = aud.volume;
+    a.play().catch(()=>{});
   }catch{}
 }
 
-function bgmPlaySafe(){
-  if(!soundEnabled || !bgmWanted) return;
-  if(bgmStarted) return;
-  const p = SFX.bgm.play();
-  if(p && typeof p.then === "function"){
-    p.then(()=>{ bgmStarted = true; }).catch(()=>{  });
-  }
+function playHover(){
+  const now = Date.now();
+  if(now - lastHoverAt < 60) return;
+  lastHoverAt = now;
+  playSfx(SFX.hover);
 }
 
-function bgmStop(){
-  try{ SFX.bgm.pause(); }catch{}
-  bgmStarted = false;
+function playClick(){
+  playSfx(SFX.click);
 }
 
-function setSound(on){
-  soundEnabled = !!on;
-  bgmWanted = soundEnabled;
-  localStorage.setItem(SOUND_STORE, soundEnabled ? "on" : "off");
-  updateSoundButton();
+function armBgmStart(){
+  if(!soundEnabled || bgmStarted) return;
+  SFX.bgm.play().then(()=>{ bgmStarted = true; }).catch(()=>{});
+}
 
-  if(!soundEnabled){
-    bgmStop();
-  }else{
-
-    bgmPlaySafe();
-  }
+function ensureBgmFromGesture(){
+  if(!soundEnabled || bgmStarted) return;
+  SFX.bgm.play().then(()=>{ bgmStarted = true; }).catch(()=>{});
 }
 
 function installFirstGestureHook(){
-  const unlock = () => {
-    if(soundEnabled) bgmPlaySafe();
-    window.removeEventListener("pointerdown", unlock, true);
-    window.removeEventListener("keydown", unlock, true);
-    window.removeEventListener("touchstart", unlock, true);
+  const once = () => {
+    ensureBgmFromGesture();
+    window.removeEventListener("pointerdown", once, true);
+    window.removeEventListener("keydown", once, true);
+    window.removeEventListener("touchstart", once, true);
   };
-  window.addEventListener("pointerdown", unlock, true);
-  window.addEventListener("keydown", unlock, true);
-  window.addEventListener("touchstart", unlock, true);
-
-  document.addEventListener("visibilitychange", () => {
-    if(document.hidden){
-      if(bgmStarted) bgmStop();
-    }else{
-      if(soundEnabled) bgmPlaySafe();
-    }
-  });
+  window.addEventListener("pointerdown", once, true);
+  window.addEventListener("keydown", once, true);
+  window.addEventListener("touchstart", once, true);
 }
 
 function installUiSounds(){
-  const clickTargets = [
+  const hoverTargets = [
     btnNew, btnCenter, btnRefresh, btnSound,
     btnCloseDrawer, btnDelete, btnDone
   ].filter(Boolean);
 
-  for(const el of clickTargets){
+  for(const el of hoverTargets){
+    el.addEventListener("mouseenter", playHover);
+    el.addEventListener("focus", playHover);
     el.addEventListener("click", playClick);
   }
 
-  if(stage){
-    stage.addEventListener("dblclick", () => playClick());
+  stage.addEventListener("pointerover", (e) => {
+    const note = e.target?.closest?.(".note");
+    if(note) playHover();
+  });
+
+  if(editText){
+    editText.addEventListener("focus", playHover);
   }
 }
+
+// app.js — Pixel Note Wall (grid + ownership)
+//
+// Goals:
+// - Public board UX (everyone can see everything)
+// - You can ONLY move/edit/delete notes you created (anonymous editKey)
+// - Notes snap to grid so you can't cover/block other notes
+//
+// This file works even before API exists: it runs offline (no persistence).
+// When you add the Worker API, it will start polling /api/notes and syncing.
 
 const API_BASE = "/api";
 const POLL_MS = 2000;
 const SAVE_DEBOUNCE_MS = 450;
 
+// Board dimensions (match CSS stage)
 const STAGE_W = 3000;
 const STAGE_H = 2000;
 
-const GRID = 24;
+// Grid rules (match CSS --grid)
+const GRID = 24; // px per cell
 const NOTE_W = 240;
 const NOTE_H = 132;
 
+// If true: do strict grid occupancy; server should enforce too.
 const ENFORCE_NO_OVERLAP = true;
 
 const stage = document.getElementById("stage");
-
-const stageWrap = document.querySelector(".stageWrap");
-
-let cam = { x: 0, y: 0, s: 1 };
-function camClamp(){
-  if(!stageWrap) return;
-  const r = stageWrap.getBoundingClientRect();
-  const minX = Math.min(0, r.width - STAGE_W*cam.s);
-  const minY = Math.min(0, r.height - STAGE_H*cam.s);
-  cam.x = clamp(cam.x, minX, 0);
-  cam.y = clamp(cam.y, minY, 0);
-}
-function applyCam(){
-  camClamp();
-  stage.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.s})`;
-}
-function fitCam(){
-  if(!stageWrap) return;
-  const r = stageWrap.getBoundingClientRect();
-  const s = Math.min(1, (r.width-24)/STAGE_W, (r.height-24)/STAGE_H);
-  cam.s = clamp(s, 0.35, 1);
-  cam.x = (r.width - STAGE_W*cam.s)/2;
-  cam.y = (r.height - STAGE_H*cam.s)/2;
-  applyCam();
-}
-function screenToStage(clientX, clientY){
-  const r = stageWrap.getBoundingClientRect();
-  return {
-    x: (clientX - r.left - cam.x)/cam.s,
-    y: (clientY - r.top  - cam.y)/cam.s
-  };
-}
 const statusEl = document.getElementById("status");
 const toastEl = document.getElementById("toast");
 
@@ -168,7 +162,6 @@ const COLORS = [
 ];
 
 let notes = [];
-let __mobileReadyAt = performance.now() + 700;
 let noteEls = new Map();
 let selectedId = null;
 let selectedColor = "note1";
@@ -177,6 +170,11 @@ let apiOnline = false;
 let pollTimer = null;
 let saveTimer = null;
 
+/* =========================
+   Ownership storage
+   We store editKeys locally:
+   localStorage["noteKeys"] = { [noteId]: editKey }
+   ========================= */
 const KEY_STORE = "noteKeys_v1";
 function loadKeys(){
   try{ return JSON.parse(localStorage.getItem(KEY_STORE) || "{}"); }
@@ -203,11 +201,15 @@ function isOwner(noteId){
   return !!getEditKey(noteId);
 }
 
+/* =========================
+   Helpers
+   ========================= */
 function uid(){
   return "n_" + Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 function randKey(){
-
+  // editKey should be unguessable; this is fine for prototype.
+  // server should also generate/rotate if you want.
   return "k_" + crypto.getRandomValues(new Uint32Array(4)).join("_") + "_" + Date.now().toString(16);
 }
 function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
@@ -232,7 +234,7 @@ function snap(n){
 }
 
 function cellKeyFromXY(x,y){
-
+  // occupancy by top-left snapped coordinate
   return `${snap(x)}:${snap(y)}`;
 }
 
@@ -246,14 +248,14 @@ function buildOccupancy(exceptId=null){
 }
 
 function findFreeCellNear(x,y, exceptId=null){
-
+  // Spiral search around the desired snapped position.
   const targetX = clamp(snap(x), 0, STAGE_W - NOTE_W);
   const targetY = clamp(snap(y), 0, STAGE_H - NOTE_H);
 
   if(!ENFORCE_NO_OVERLAP) return {x:targetX, y:targetY};
 
   const occ = buildOccupancy(exceptId);
-  const maxR = 40;
+  const maxR = 40; // ~40 rings in grid units
 
   function isFree(px,py){
     const k = `${px}:${py}`;
@@ -289,9 +291,13 @@ function findFreeCellNear(x,y, exceptId=null){
     }
   }
 
+  // If truly full, just return the snapped target; server can reject creation.
   return {x:targetX, y:targetY};
 }
 
+/* =========================
+   Drawer
+   ========================= */
 function renderSwatches(){
   colorRow.innerHTML = "";
   for(const c of COLORS){
@@ -350,6 +356,9 @@ function closeDrawer(){
   ownerTag.classList.remove("show");
 }
 
+/* =========================
+   Rendering
+   ========================= */
 function ensureNoteEl(n){
   let el = noteEls.get(n.id);
   if(el) return el;
@@ -363,8 +372,12 @@ function ensureNoteEl(n){
 
   el.appendChild(text);
 
-  el.addEventListener("dblclick",(e)=>{e.preventDefault();openDrawer(el.dataset.id);});
-installDrag(el);
+  el.addEventListener("dblclick", (e) => {
+    e.preventDefault();
+    openDrawer(n.id);
+  });
+
+  installDrag(el);
 
   stage.appendChild(el);
   noteEls.set(n.id, el);
@@ -386,6 +399,7 @@ function syncNoteEl(id){
 
   el.querySelector(".text").textContent = safeText(n.text);
 
+  // update drawer meta if open
   if(selectedId === id){
     metaTime.textContent = `updated: ${n.updatedAt || "—"}`;
     metaPos.textContent = `pos: ${n.x}, ${n.y}`;
@@ -406,6 +420,9 @@ function rerenderAll(){
   }
 }
 
+/* =========================
+   Local state changes
+   ========================= */
 function updateLocal(id, patch){
   const i = notes.findIndex(n => n.id === id);
   if(i === -1) return;
@@ -413,7 +430,7 @@ function updateLocal(id, patch){
 }
 
 function replaceFromServer(serverNotes){
-
+  // Keep local editKeys; just replace note contents/positions/colors from server.
   notes = (serverNotes || []).map(n => ({
     id: n.id,
     text: n.text ?? "",
@@ -424,9 +441,13 @@ function replaceFromServer(serverNotes){
   }));
   rerenderAll();
 
+  // If the drawer is open on a note that disappeared, close it
   if(selectedId && !notes.some(n=>n.id===selectedId)) closeDrawer();
 }
 
+/* =========================
+   API
+   ========================= */
 async function apiGetNotes(){
   const r = await fetch(`${API_BASE}/notes`, { method:"GET" });
   if(!r.ok) throw new Error(`GET failed ${r.status}`);
@@ -463,6 +484,9 @@ async function apiDeleteNote(id, editKey){
   return await r.json().catch(()=>({ok:true}));
 }
 
+/* =========================
+   Polling
+   ========================= */
 async function pollOnce(){
   try{
     const data = await apiGetNotes();
@@ -478,152 +502,77 @@ async function pollOnce(){
 function startPolling(){
   if(pollTimer) clearInterval(pollTimer);
   pollOnce();
-  pollTimer = 
-function installPanZoom(){
-  if(!stageWrap) return;
-  let panning=false;
-  let panStartX=0, panStartY=0, camStartX=0, camStartY=0;
-
-  stageWrap.addEventListener("pointerdown",(e)=>{
-    if(drawer && drawer.classList.contains("show")) return;
-    if(e.pointerType==="mouse" && e.button!==0) return;
-    if(e.target.closest && e.target.closest(".note")) return;
-    panning=true;
-    panStartX=e.clientX; panStartY=e.clientY;
-    camStartX=cam.x; camStartY=cam.y;
-    stageWrap.setPointerCapture?.(e.pointerId);
-    e.preventDefault();
-  },{passive:false});
-
-  stageWrap.addEventListener("pointermove",(e)=>{
-    if(!panning) return;
-    const dx=e.clientX-panStartX;
-    const dy=e.clientY-panStartY;
-    cam.x = camStartX + dx;
-    cam.y = camStartY + dy;
-    applyCam();
-  },{passive:true});
-
-  stageWrap.addEventListener("pointerup",()=>{panning=false;},{passive:true});
-  stageWrap.addEventListener("pointercancel",()=>{panning=false;},{passive:true});
-
-  let pinch=null;
-  stageWrap.addEventListener("touchstart",(e)=>{
-    if(e.touches.length===2){
-      const t1=e.touches[0], t2=e.touches[1];
-      const dx=t1.clientX-t2.clientX, dy=t1.clientY-t2.clientY;
-      const dist=Math.hypot(dx,dy);
-      const midX=(t1.clientX+t2.clientX)/2;
-      const midY=(t1.clientY+t2.clientY)/2;
-      const anchor = screenToStage(midX, midY);
-      pinch={dist, s:cam.s, ax:anchor.x, ay:anchor.y, mx:midX, my:midY};
-      e.preventDefault();
-    }
-  },{passive:false});
-
-  stageWrap.addEventListener("touchmove",(e)=>{
-    if(!pinch || e.touches.length!==2) return;
-    const t1=e.touches[0], t2=e.touches[1];
-    const dx=t1.clientX-t2.clientX, dy=t1.clientY-t2.clientY;
-    const dist=Math.hypot(dx,dy);
-    const midX=(t1.clientX+t2.clientX)/2;
-    const midY=(t1.clientY+t2.clientY)/2;
-
-    const ns = clamp(pinch.s * (dist/pinch.dist), 0.35, 2.2);
-    cam.s = ns;
-
-    const r = stageWrap.getBoundingClientRect();
-    const sx = midX - r.left;
-    const sy = midY - r.top;
-
-    cam.x = sx - pinch.ax * cam.s;
-    cam.y = sy - pinch.ay * cam.s;
-    applyCam();
-    e.preventDefault();
-  },{passive:false});
-
-  stageWrap.addEventListener("touchend",(e)=>{ if(e.touches.length<2) pinch=null; },{passive:true});
-  stageWrap.addEventListener("touchcancel",()=>{pinch=null;},{passive:true});
+  pollTimer = setInterval(pollOnce, POLL_MS);
 }
 
-setInterval(pollOnce, POLL_MS);
-}
-
+/* =========================
+   Dragging (OWN notes only) + grid snap + no overlap
+   ========================= */
 function installDrag(el){
-  let dragging=false;
-  let startX=0,startY=0;
-  let baseX=0,baseY=0;
-  let moved=false;
-  let downAt=0;
+  let dragging = false;
+  let startX = 0, startY = 0;
+  let baseX = 0, baseY = 0;
 
-  const begin=(clientX,clientY,pointerId)=>{
-    const id=el.dataset.id;
-    if(!isOwner(id)){ toast("locked"); return false; }
-    const n=notes.find(x=>x.id===id);
-    if(!n) return false;
+  const onDown = (e) => {
+    if(e.button !== 0) return;
+    const id = el.dataset.id;
 
-    dragging=true;
-    moved=false;
-    downAt=performance.now();
-
-    startX=clientX;
-    startY=clientY;
-    baseX=n.x;
-    baseY=n.y;
-
-    el.setPointerCapture?.(pointerId);
-    return true;
-  };
-
-  const moveTo=(clientX,clientY)=>{
-    if(!dragging) return;
-    const id=el.dataset.id;
-    const dx=(clientX-startX)/cam.s;
-    const dy=(clientY-startY)/cam.s;
-    if(!moved && (Math.abs(dx)>6 || Math.abs(dy)>6)) moved=true;
-
-    const nx=clamp(baseX+dx,0,STAGE_W-NOTE_W);
-    const ny=clamp(baseY+dy,0,STAGE_H-NOTE_H);
-
-    updateLocal(id,{x:nx,y:ny});
-    syncNoteEl(id);
-  };
-
-  const end=()=>{
-    if(!dragging) return;
-    dragging=false;
-
-    const id=el.dataset.id;
-    const n=notes.find(x=>x.id===id);
-    if(!n) return;
-
-    if(!moved && (performance.now()-downAt)<320){
-      if(performance.now() < __mobileReadyAt) return;
-      openDrawer(id);
+    if(!isOwner(id)){
+      toast("locked");
       return;
     }
 
-    const placed=findFreeCellNear(n.x,n.y,id);
-    updateLocal(id,{x:placed.x,y:placed.y});
+    dragging = true;
+    el.setPointerCapture?.(e.pointerId);
+
+    const n = notes.find(x => x.id === id);
+    if(!n) return;
+
+    startX = e.clientX;
+    startY = e.clientY;
+    baseX = n.x;
+    baseY = n.y;
+  };
+
+  const onMove = (e) => {
+    if(!dragging) return;
+
+    const id = el.dataset.id;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    const nx = clamp(baseX + dx, 0, STAGE_W - NOTE_W);
+    const ny = clamp(baseY + dy, 0, STAGE_H - NOTE_H);
+
+    updateLocal(id, { x: nx, y: ny });
+    // during drag, don't snap yet (feels smoother)
     syncNoteEl(id);
+  };
+
+  const onUp = () => {
+    if(!dragging) return;
+    dragging = false;
+
+    const id = el.dataset.id;
+    const n = notes.find(x => x.id === id);
+    if(!n) return;
+
+    // snap + find free cell
+    const placed = findFreeCellNear(n.x, n.y, id);
+    updateLocal(id, { x: placed.x, y: placed.y });
+    syncNoteEl(id);
+
     queueSave(id);
   };
 
-  el.addEventListener("pointerdown",(e)=>{
-    if(e.pointerType==="mouse" && e.button!==0) return;
-    if(begin(e.clientX,e.clientY,e.pointerId)) e.preventDefault();
-  },{passive:false});
-
-  window.addEventListener("pointermove",(e)=>{
-    if(!dragging) return;
-    moveTo(e.clientX,e.clientY);
-  },{passive:true});
-
-  window.addEventListener("pointerup",()=>end(),{passive:true});
-  window.addEventListener("pointercancel",()=>end(),{passive:true});
+  el.addEventListener("pointerdown", onDown);
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
 }
 
-
+/* =========================
+   Saving (debounced)
+   ========================= */
 function queueSave(id){
   if(!id) return;
   clearTimeout(saveTimer);
@@ -646,6 +595,7 @@ async function saveNow(id){
     const payload = { text:n.text, x:snap(n.x), y:snap(n.y), color:n.color, editKey };
     const data = await apiUpdateNote(id, payload);
 
+    // If server returns canonical note, merge it (and keep our key)
     if(data?.note?.id){
       const s = data.note;
       updateLocal(id, {
@@ -666,12 +616,16 @@ async function saveNow(id){
   }
 }
 
+/* =========================
+   UI actions
+   ========================= */
 btnNew.addEventListener("click", async () => {
-
+  // propose a spot near top-left-ish and find a free cell
   const proposed = findFreeCellNear(140 + Math.random()*120, 140 + Math.random()*120, null);
   const id = uid();
   const editKey = randKey();
 
+  // local optimistic create
   const n = {
     id,
     text: "",
@@ -694,6 +648,7 @@ btnNew.addEventListener("click", async () => {
   try{
     setStatus("creating...");
 
+    // send create
     const data = await apiCreateNote({
       id,
       text: n.text,
@@ -703,18 +658,22 @@ btnNew.addEventListener("click", async () => {
       editKey
     });
 
+    // If server assigns a new id/key, reconcile.
+    // (Recommended: server keeps client id, but this supports either.)
     if(data?.note?.id){
       const s = data.note;
       const newId = s.id;
 
       if(newId && newId !== id){
-
+        // move stored editKey to new id if server returns it
         const serverKey = s.editKey || editKey;
         deleteEditKey(id);
         setEditKey(newId, serverKey);
 
+        // update note id
         notes = notes.map(x => x.id === id ? ({...x, id:newId}) : x);
 
+        // remap element
         const el = noteEls.get(id);
         if(el){
           noteEls.delete(id);
@@ -725,6 +684,7 @@ btnNew.addEventListener("click", async () => {
         selectedId = newId;
       }
 
+      // merge canonical placement
       updateLocal(selectedId, {
         x: Number.isFinite(s.x) ? snap(clamp(s.x, 0, STAGE_W - NOTE_W)) : n.x,
         y: Number.isFinite(s.y) ? snap(clamp(s.y, 0, STAGE_H - NOTE_H)) : n.y,
@@ -742,7 +702,9 @@ btnNew.addEventListener("click", async () => {
   }
 });
 
-btnCenter.addEventListener("click",()=>{playClick();fitCam();toast("center");});
+btnCenter.addEventListener("click", () => {
+  toast("stage is fixed (prototype)");
+});
 
 btnRefresh.addEventListener("click", () => {
   pollOnce();
@@ -768,6 +730,7 @@ btnDelete.addEventListener("click", async () => {
 
   const editKey = getEditKey(id);
 
+  // optimistic local remove
   notes = notes.filter(n => n.id !== id);
   rerenderAll();
   closeDrawer();
@@ -802,17 +765,22 @@ window.addEventListener("keydown", (e) => {
   if(e.key === "Escape" && drawer.classList.contains("open")) closeDrawer();
 });
 
+/* =========================
+   Boot
+   ========================= */
 (function init(){
   renderSwatches();
 
   updateSoundButton();
   installFirstGestureHook();
   installUiSounds();
-  if(soundEnabled) bgmPlaySafe();
+  if(soundEnabled) armBgmStart();
 
+  // Seed notes (offline demo)
   const a = uid(), b = uid();
   const kA = randKey(), kB = randKey();
 
+  // Seed ownership for ONLY the first note (so you can see locked behavior)
   setEditKey(a, kA);
 
   notes = [
@@ -820,11 +788,7 @@ window.addEventListener("keydown", (e) => {
     { id: b, text:"this one is locked.\nyou can read but not move.", x: snap(432), y: snap(264), color:"note1", updatedAt:"—" },
   ];
   rerenderAll();
-  closeDrawer();
 
   setStatus("offline / api not ready");
   startPolling();
 })();
-
-try{fitCam();installPanZoom();}catch(e){}
-window.addEventListener("resize",()=>{fitCam();});
