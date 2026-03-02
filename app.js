@@ -1,6 +1,8 @@
 
 /* =========================
-  soundsuh
+   Sounds (click / hover / bgm)
+   - browsers require a user gesture before audio can play
+   - bgm starts on first interaction when sound is ON
    ========================= */
 const SOUND_STORE = "noteWallSound_v1"; // "on" | "off"
 let soundEnabled = (localStorage.getItem(SOUND_STORE) || "off") === "on";
@@ -107,8 +109,13 @@ function installUiSounds(){
 
 // app.js — Pixel Note Wall (grid + ownership)
 //
-// 
+// Goals:
+// - Public board UX (everyone can see everything)
+// - You can ONLY move/edit/delete notes you created (anonymous editKey)
+// - Notes snap to grid so you can't cover/block other notes
 //
+// This file works even before API exists: it runs offline (no persistence).
+// When you add the Worker API, it will start polling /api/notes and syncing.
 
 const API_BASE = "/api";
 const POLL_MS = 2000;
@@ -165,7 +172,7 @@ let saveTimer = null;
 
 /* =========================
    Ownership storage
-   editkeys stored locally
+   We store editKeys locally:
    localStorage["noteKeys"] = { [noteId]: editKey }
    ========================= */
 const KEY_STORE = "noteKeys_v1";
@@ -195,14 +202,14 @@ function isOwner(noteId){
 }
 
 /* =========================
-   helpers
+   Helpers
    ========================= */
 function uid(){
   return "n_" + Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 function randKey(){
-  // editkey s
-  // server generate
+  // editKey should be unguessable; this is fine for prototype.
+  // server should also generate/rotate if you want.
   return "k_" + crypto.getRandomValues(new Uint32Array(4)).join("_") + "_" + Date.now().toString(16);
 }
 function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
@@ -284,12 +291,12 @@ function findFreeCellNear(x,y, exceptId=null){
     }
   }
 
-  // if truly full
+  // If truly full, just return the snapped target; server can reject creation.
   return {x:targetX, y:targetY};
 }
 
 /* =========================
-   drawer
+   Drawer
    ========================= */
 function renderSwatches(){
   colorRow.innerHTML = "";
@@ -350,7 +357,7 @@ function closeDrawer(){
 }
 
 /* =========================
-   rendering
+   Rendering
    ========================= */
 function ensureNoteEl(n){
   let el = noteEls.get(n.id);
@@ -423,7 +430,7 @@ function updateLocal(id, patch){
 }
 
 function replaceFromServer(serverNotes){
-  // keep local editkeys
+  // Keep local editKeys; just replace note contents/positions/colors from server.
   notes = (serverNotes || []).map(n => ({
     id: n.id,
     text: n.text ?? "",
@@ -434,7 +441,7 @@ function replaceFromServer(serverNotes){
   }));
   rerenderAll();
 
-  // if drawer open
+  // If the drawer is open on a note that disappeared, close it
   if(selectedId && !notes.some(n=>n.id===selectedId)) closeDrawer();
 }
 
@@ -478,7 +485,7 @@ async function apiDeleteNote(id, editKey){
 }
 
 /* =========================
-   polling
+   Polling
    ========================= */
 async function pollOnce(){
   try{
@@ -499,7 +506,7 @@ function startPolling(){
 }
 
 /* =========================
-   dragging
+   Dragging (OWN notes only) + grid snap + no overlap
    ========================= */
 function installDrag(el){
   let dragging = false;
@@ -538,7 +545,7 @@ function installDrag(el){
     const ny = clamp(baseY + dy, 0, STAGE_H - NOTE_H);
 
     updateLocal(id, { x: nx, y: ny });
-    // ddragging my bals
+    // during drag, don't snap yet (feels smoother)
     syncNoteEl(id);
   };
 
@@ -564,7 +571,7 @@ function installDrag(el){
 }
 
 /* =========================
-   saving
+   Saving (debounced)
    ========================= */
 function queueSave(id){
   if(!id) return;
@@ -588,7 +595,7 @@ async function saveNow(id){
     const payload = { text:n.text, x:snap(n.x), y:snap(n.y), color:n.color, editKey };
     const data = await apiUpdateNote(id, payload);
 
-    // if serv rturns cano
+    // If server returns canonical note, merge it (and keep our key)
     if(data?.note?.id){
       const s = data.note;
       updateLocal(id, {
@@ -613,7 +620,7 @@ async function saveNow(id){
    UI actions
    ========================= */
 btnNew.addEventListener("click", async () => {
-  // proposal
+  // propose a spot near top-left-ish and find a free cell
   const proposed = findFreeCellNear(140 + Math.random()*120, 140 + Math.random()*120, null);
   const id = uid();
   const editKey = randKey();
@@ -651,7 +658,8 @@ btnNew.addEventListener("click", async () => {
       editKey
     });
 
-    // if serv assig
+    // If server assigns a new id/key, reconcile.
+    // (Recommended: server keeps client id, but this supports either.)
     if(data?.note?.id){
       const s = data.note;
       const newId = s.id;
@@ -768,11 +776,11 @@ window.addEventListener("keydown", (e) => {
   installUiSounds();
   if(soundEnabled) armBgmStart();
 
-  // Seed notes
+  // Seed notes (offline demo)
   const a = uid(), b = uid();
   const kA = randKey(), kB = randKey();
 
-  // Seed ownership
+  // Seed ownership for ONLY the first note (so you can see locked behavior)
   setEditKey(a, kA);
 
   notes = [
@@ -822,83 +830,3 @@ function installPan(){
 
 
 try{installPan();}catch(e){}
-
-
-function installPinchZoom(){
-  const scroller = document.querySelector(".stageWrap") || document.getElementById("stageWrap") || document.getElementById("wrap") || document.querySelector(".wrap");
-  const stageEl = document.getElementById("stage") || document.querySelector(".stage");
-  if(!scroller || !stageEl) return;
-
-  let zoom = 1;
-  const ZMIN = 0.45, ZMAX = 1.8;
-
-  const dist = (t1,t2)=>{
-    const dx=t1.clientX-t2.clientX, dy=t1.clientY-t2.clientY;
-    return Math.hypot(dx,dy);
-  };
-
-  let pinching = null;
-
-  scroller.addEventListener("touchstart",(e)=>{
-    if(e.touches.length!==2) return;
-    const t1=e.touches[0], t2=e.touches[1];
-    const d0 = dist(t1,t2);
-
-    const r = scroller.getBoundingClientRect();
-    const midX = (t1.clientX+t2.clientX)/2 - r.left;
-    const midY = (t1.clientY+t2.clientY)/2 - r.top;
-
-    const stageX = (scroller.scrollLeft + midX) / zoom;
-    const stageY = (scroller.scrollTop  + midY) / zoom;
-
-    pinching = { d0, z0: zoom, midX, midY, stageX, stageY };
-    e.preventDefault();
-  }, { passive:false });
-
-  scroller.addEventListener("touchmove",(e)=>{
-    if(!pinching || e.touches.length!==2) return;
-    const t1=e.touches[0], t2=e.touches[1];
-    const d = dist(t1,t2);
-    let nz = pinching.z0 * (d / pinching.d0);
-    nz = Math.max(ZMIN, Math.min(ZMAX, nz));
-
-    zoom = nz;
-    stageEl.style.transform = `scale(${zoom})`;
-
-    const r = scroller.getBoundingClientRect();
-    const midX = (t1.clientX+t2.clientX)/2 - r.left;
-    const midY = (t1.clientY+t2.clientY)/2 - r.top;
-
-    scroller.scrollLeft = pinching.stageX * zoom - midX;
-    scroller.scrollTop  = pinching.stageY * zoom - midY;
-
-    e.preventDefault();
-  }, { passive:false });
-
-  scroller.addEventListener("touchend",(e)=>{
-    if(e.touches.length<2) pinching = null;
-  }, { passive:true });
-
-  scroller.addEventListener("touchcancel",()=>{ pinching=null; }, { passive:true });
-
-  // double tap empty 2zoom
-  let lastTap = 0;
-  scroller.addEventListener("touchend",(e)=>{
-    if(e.touches.length) return;
-    const now = Date.now();
-    const dt = now - lastTap;
-    lastTap = now;
-    if(dt>0 && dt<280){
-      const t = e.changedTouches && e.changedTouches[0];
-      if(!t) return;
-      const target = document.elementFromPoint(t.clientX, t.clientY);
-      if(target && target.closest && target.closest(".note")) return;
-
-      zoom = 1;
-      stageEl.style.transform = "scale(1)";
-    }
-  }, { passive:true });
-}
-
-
-try{installPinchZoom();}catch(e){}

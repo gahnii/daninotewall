@@ -397,5 +397,103 @@ body{
 }
 
 
+/* ===== draw page ===== */
+.drawPanel{
+  position:absolute;
+  left: 24px;
+  top: 96px;
+  display:flex;
+  gap: 18px;
+  align-items:flex-start;
+  padding: 14px;
+  border: 2px solid rgba(200,220,240,0.22);
+  background: rgba(8,12,18,0.72);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.55);
+  backdrop-filter: blur(6px);
+  border-radius: 10px;
+}
+#c{
+  width: 512px;
+  height: 512px;
+  image-rendering: pixelated;
+  border: 2px solid rgba(200,220,240,0.26);
+  background: rgba(10,14,20,0.75);
+}
+.drawTools{
+  width: min(320px, 70vw);
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+}
+.toolRow{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  padding: 10px;
+  border: 2px solid rgba(200,220,240,0.18);
+  background: rgba(10,14,20,0.55);
+  border-radius: 10px;
+}
+.toolLabel{ min-width: 54px; opacity: .85; }
+.toolVal{ min-width: 22px; text-align:right; opacity:.85; }
+.textInput{
+  flex:1;
+  background: rgba(5,8,12,0.7);
+  border: 2px solid rgba(200,220,240,0.16);
+  border-radius: 10px;
+  padding: 10px 10px;
+  color: inherit;
+  font-family: inherit;
+  outline: none;
+}
+.btn.small{ padding: 8px 10px; font-size: 10px; }
+.btn.ghost{ opacity: .7; pointer-events:none; }
 
-#stage, .stage{ transform-origin: 0 0; }
+.gallery{
+  position:absolute;
+  left: 24px;
+  top: 660px;
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+  width: min(980px, calc(100% - 48px));
+  padding-bottom: 60px;
+}
+.card{
+  border: 2px solid rgba(200,220,240,0.16);
+  background: rgba(10,14,20,0.55);
+  border-radius: 10px;
+  overflow:hidden;
+}
+.card img{
+  width:100%;
+  height:auto;
+  display:block;
+  image-rendering: pixelated;
+  background: rgba(0,0,0,0.2);
+}
+.card .meta{
+  padding: 10px;
+  display:flex;
+  flex-direction:column;
+  gap: 6px;
+}
+.card .cap{ opacity:.9; font-size: 10px; line-height: 1.3; word-break: break-word; }
+.card .row{ display:flex; justify-content:space-between; gap:8px; opacity:.75; font-size: 9px; }
+.card .row .id{ max-width: 120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+@media (max-width: 720px){
+  .drawPanel{
+    left: 12px;
+    right: 12px;
+    top: 78px;
+    flex-direction:column;
+  }
+  #c{ width: 100%; height: auto; max-width: 512px; }
+  .gallery{
+    left: 12px;
+    top: 760px;
+    width: calc(100% - 24px);
+  }
+}
+

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>dani note wall</title>
 
   <!-- polkka dotto -->
@@ -24,6 +24,7 @@
 
     <div class="actions">
       <button id="btnNew" class="btn primary">new note</button>
+          <a class="btn" href="draw.html">draw</a>
       <button id="btnCenter" class="btn">center</button>
       <button id="btnRefresh" class="btn">refresh</button>
       <button id="btnSound" class="btn soundOff">sound: off</button>
@@ -33,7 +34,9 @@
 
   <main class="stageWrap">
     <div class="legend">
-      <div class="chip"><span class="k">edit</span><span class="v">you can edit your own notes by double clicking</span></div>
+      <div class="chip"><span class="k">place</span><span class="v">notes on the grid</span></div>
+      <div class="chip"><span class="k">edit</span><span class="v">you can edit your own notes</span></div>
+      <div class="chip"><span class="k">lock</span><span class="v">oothers are protected</span></div>
     </div>
 
     <div id="stage" class="stage" aria-label="notes canvas"></div>
