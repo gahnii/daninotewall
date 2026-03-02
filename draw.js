@@ -1,3 +1,16 @@
+
+function scrollToGallery(){
+  try{
+    if(window.matchMedia("(max-width: 720px)").matches){
+      const g = document.getElementById("gallery");
+      if(g && wrap){
+        const top = g.offsetTop - 90;
+        wrap.scrollTop = Math.max(0, top);
+      }
+    }
+  }catch(e){}
+}
+
 const API = "/api/drawings";
 const els = {
   c: document.getElementById("c"),
@@ -15,6 +28,25 @@ const els = {
   btnPen: document.getElementById("btnPen"),
   btnSound: document.getElementById("btnSound")
 };
+
+let mode = "draw";
+const wrap = document.getElementById("wrap");
+const stage = document.getElementById("stage");
+
+const btnMode = document.getElementById("btnMode");
+function applyMode(){
+  if(!btnMode) return;
+  btnMode.textContent = `mode: ${mode}`;
+  els.c.style.touchAction = (mode === "pan") ? "pan-x pan-y" : "none";
+}
+if(btnMode){
+  btnMode.addEventListener("click", ()=>{
+    playClick();
+    mode = (mode === "draw") ? "pan" : "draw";
+    applyMode();
+  });
+}
+
 
 let soundOn = false;
 let clickAudio = null;
@@ -71,6 +103,8 @@ function posFromEvent(e){
 }
 
 function startDraw(e){
+  if(mode==="pan") return;
+
   if(e.touches && e.touches.length>1) return;
   drawing = true;
   pushHistory();
@@ -174,6 +208,7 @@ async function publish(){
     els.caption.value = "";
     setStatus("published");
     await refresh();
+    scrollToGallery();
   }catch(e){
     setStatus("publish failed");
     alert(String(e.message||e));
@@ -196,5 +231,36 @@ document.querySelectorAll("[data-bg]").forEach(btn=>{
 });
 
 initSound();
+applyMode();
+installWrapPan();
 refresh();
 setInterval(refresh, 8000);
+
+
+function installWrapPan(){
+  if(!wrap) return;
+  let panning=false;
+  let sx=0, sy=0, sl=0, st=0;
+
+  wrap.addEventListener("pointerdown",(e)=>{
+    if(e.button!=null && e.button!==0) return;
+    if(mode === "draw" && (e.target === els.c || (e.target && e.target.closest && e.target.closest("#c")))) return;
+    panning=true;
+    sx=e.clientX; sy=e.clientY;
+    sl=wrap.scrollLeft; st=wrap.scrollTop;
+    wrap.setPointerCapture?.(e.pointerId);
+  });
+
+  wrap.addEventListener("pointermove",(e)=>{
+    if(!panning) return;
+    const dx = e.clientX - sx;
+    const dy = e.clientY - sy;
+    wrap.scrollLeft = sl - dx;
+    wrap.scrollTop  = st - dy;
+  });
+
+  const end=()=>{ panning=false; };
+  wrap.addEventListener("pointerup", end);
+  wrap.addEventListener("pointercancel", end);
+}
+

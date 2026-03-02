@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>admin</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <div class="dot"></div>
+      <div class="titles">
+        <div class="title">admin panel</div>
+        <div class="subtitle">hi lol</div>
+      </div>
+    </div>
+    <div class="actions">
+      <a class="btn" href="index.html">notes</a>
+      <a class="btn" href="draw.html">draw</a>
+      <button class="btn" id="btnRefresh">refresh</button>
+      <div class="btn ghost" id="status">offline</div>
+    </div>
+  </div>
+
+  <div class="adminWrap">
+    <div class="adminCard">
+      <div class="adminTitle">token</div>
+      <div class="adminRow">
+        <input id="token" class="textInput" placeholder="mi token ?" />
+        <button class="btn" id="btnSaveToken">save</button>
+        <button class="btn" id="btnClearToken">clear</button>
+      </div>
+      <div class="hint">localstr</div>
+    </div>
+
+    <div class="adminGrid">
+      <div class="adminCard">
+        <div class="adminTitle">notes</div>
+        <div class="adminList" id="notesList"></div>
+      </div>
+
+      <div class="adminCard">
+        <div class="adminTitle">drawings</div>
+        <div class="adminList" id="drawingsList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>
