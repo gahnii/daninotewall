@@ -96,6 +96,12 @@ export async function onRequest({ request, env, params }) {
     await env.NOTEWALL.put("wall:notes", JSON.stringify(notes));
   }
 
+  if(!env.NOTEWALL) return json({ error: "KV binding NOTEWALL missing" }, 503);
+
+  const admin = env.ADMIN_TOKEN || "";
+  const auth = request.headers.get("authorization") || "";
+  const isAdmin = admin && auth === `Bearer ${admin}`;
+
   const notes = await load();
   const idx = notes.findIndex(n=>n.id===id);
   if(idx === -1) return json({error:"not found"},404);
@@ -106,13 +112,20 @@ export async function onRequest({ request, env, params }) {
     const wantsTextOrColor = body.text !== undefined || body.color !== undefined;
     const editKey = (body.editKey || "");
 
-    if(wantsTextOrColor){
+    if(wantsTextOrColor && !isAdmin){
       if(!editKey) return json({error:"no editKey"},403);
       if(await sha256(editKey) !== notes[idx].keyHash) return json({error:"forbidden"},403);
 
       const nextText = String(body.text ?? notes[idx].text).slice(0, MAX_LEN);
       if(await banned(nextText)) return json({error:"blocked content"},403);
 
+      notes[idx].text = nextText;
+      notes[idx].color = body.color ?? notes[idx].color;
+    }
+
+    if(wantsTextOrColor && isAdmin){
+      const nextText = String(body.text ?? notes[idx].text).slice(0, MAX_LEN);
+      if(await banned(nextText)) return json({error:"blocked content"},403);
       notes[idx].text = nextText;
       notes[idx].color = body.color ?? notes[idx].color;
     }
@@ -124,6 +137,13 @@ export async function onRequest({ request, env, params }) {
       notes[idx].y = snap(clamp(Number(body.y),0,STAGE_H-NOTEH));
     }
 
+    if(body.bringToFront){
+      const maxZ = notes.reduce((m,n)=>Math.max(m, n.z||0), 0);
+      notes[idx].z = maxZ + 1;
+    }else if(body.z !== undefined && (isAdmin || editKey)){
+      notes[idx].z = Number(body.z) || 0;
+    }
+
     notes[idx].updatedAt = new Date().toISOString();
 
     await save(notes);
@@ -132,10 +152,16 @@ export async function onRequest({ request, env, params }) {
   }
 
   if(request.method === "DELETE"){
-    const body = await request.json();
+    const body = await request.json().catch(()=>({}));
+
+    if(isAdmin){
+      notes.splice(idx,1);
+      await save(notes);
+      return json({ok:true});
+    }
+
     if(!body.editKey) return json({error:"no editKey"},403);
-    if(await sha256(body.editKey) !== notes[idx].keyHash)
-      return json({error:"forbidden"},403);
+    if(await sha256(body.editKey) !== notes[idx].keyHash) return json({error:"forbidden"},403);
 
     notes.splice(idx,1);
     await save(notes);
