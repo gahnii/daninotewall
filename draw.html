@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>dani draw wall</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <div class="dot"></div>
+      <div class="titles">
+        <div class="title">dani draw wall</div>
+        <div class="subtitle">public doodles • publish = 1 upload</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <a class="btn" href="index.html">notes</a>
+      <button class="btn" id="btnClear">clear</button>
+      <button class="btn" id="btnUndo">undo</button>
+      <button class="btn" id="btnPublish">publish</button>
+      <button class="btn" id="btnRefresh">refresh</button>
+      <button class="btn" id="btnSound">sound: off</button>
+      <div class="btn ghost" id="status">offline / api not ready</div>
+    </div>
+  </div>
+
+  <div class="stageWrap" id="wrap">
+    <div class="stage" id="stage">
+      <div class="hudPills">
+        <div class="pill">tip: scroll/drag empty space to move around</div>
+        <div class="pill">draw: 512×512 • webp</div>
+        <div class="pill">publish uploads once</div>
+      </div>
+
+      <div class="drawPanel" id="drawPanel">
+        <canvas id="c" width="512" height="512"></canvas>
+
+        <div class="drawTools">
+          <div class="toolRow">
+            <label class="toolLabel">brush</label>
+            <input id="brush" type="range" min="1" max="28" value="6" />
+            <div class="toolVal" id="brushVal">6</div>
+          </div>
+
+          <div class="toolRow">
+            <label class="toolLabel">color</label>
+            <input id="color" type="color" value="#e7e7e7" />
+            <button class="btn small" id="btnEraser">eraser</button>
+            <button class="btn small" id="btnPen">pen</button>
+          </div>
+
+          <div class="toolRow">
+            <label class="toolLabel">bg</label>
+            <button class="btn small" data-bg="grid">grid</button>
+            <button class="btn small" data-bg="paper">paper</button>
+            <button class="btn small" data-bg="dark">dark</button>
+          </div>
+
+          <div class="toolRow">
+            <label class="toolLabel">note</label>
+            <input id="caption" class="textInput" maxlength="80" placeholder="optional caption (80 chars)" />
+          </div>
+
+          <div class="hint">anonymous. im going to delete your drawing if its inappropriate.</div>
+        </div>
+      </div>
+
+      <div class="gallery" id="gallery"></div>
+    </div>
+  </div>
+
+  <script src="draw.js"></script>
+</body>
+</html>
