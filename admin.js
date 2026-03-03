@@ -78,7 +78,7 @@ async function refresh(){
     setStatus("loading…");
     const [notes, drawings] = await Promise.all([
       api("/api/notes", { method:"GET" }),
-      api("/api/drawings", { method:"GET" })
+      api("/api/drawing", { method:"GET" })
     ]);
 
     els.notesList.innerHTML = "";
