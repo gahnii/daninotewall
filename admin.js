@@ -99,7 +99,7 @@ async function refresh(){
 
     const [notes, drawings] = await Promise.all([
       api("/api/notes", { method:"GET" }),
-      api("/api/drawing", { method:"GET" })
+      api("/api/drawing", { method:"GET" })  // singular GET
     ]);
 
     els.notesList.innerHTML = "";
@@ -139,7 +139,7 @@ document.addEventListener("click", async (e)=>{
     const id = btnD.getAttribute("data-del-draw");
     if(!confirm(`delete drawing ${id}?`)) return;
     try{
-      await api(`/api/drawing/${encodeURIComponent(id)}`, {
+      await api(`/api/drawings/${encodeURIComponent(id)}`, {  // plural DELETE
         method:"DELETE",
         body:"{}"
       });
