@@ -20,6 +20,7 @@ els.btnSaveToken.addEventListener("click", ()=>{
   setToken(String(els.token.value||"").trim());
   setStatus("token saved");
 });
+
 els.btnClearToken.addEventListener("click", ()=>{
   clearToken();
   els.token.value = "";
@@ -28,17 +29,33 @@ els.btnClearToken.addEventListener("click", ()=>{
 
 async function api(url, opts){
   const token = getToken();
-  const headers = { "content-type":"application/json", ...(opts&&opts.headers||{}) };
+  const headers = {
+    "content-type":"application/json",
+    ...(opts && opts.headers || {})
+  };
   if(token) headers["authorization"] = `Bearer ${token}`;
+
   const res = await fetch(url, { ...opts, headers });
   const txt = await res.text();
+
   let data = null;
   try{ data = txt ? JSON.parse(txt) : null; }catch(e){}
-  if(!res.ok) throw new Error((data && data.error) ? data.error : (txt || res.statusText));
+
+  if(!res.ok){
+    throw new Error((data && data.error) ? data.error : (txt || res.statusText));
+  }
+
   return data;
 }
 
-function esc(s){ return String(s||"").replace(/[&<>"]/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
+function esc(s){
+  return String(s||"").replace(/[&<>"]/g, c=>({
+    "&":"&amp;",
+    "<":"&lt;",
+    ">":"&gt;",
+    '"':"&quot;"
+  }[c]));
+}
 
 function noteRow(n){
   const div = document.createElement("div");
@@ -64,7 +81,9 @@ function drawingRow(d){
       <div class="adminId">${esc(d.id)}</div>
       <div class="adminSub">${esc((d.createdAt||"").slice(0,19))}</div>
     </div>
-    <div class="adminPreview"><img src="${esc(d.dataUrl)}" alt=""></div>
+    <div class="adminPreview">
+      <img src="${esc(d.dataUrl)}" alt="">
+    </div>
     <div class="adminText">${esc((d.caption||"").slice(0,140))}</div>
     <div class="adminActions">
       <button class="btn small danger" data-del-draw="${esc(d.id)}">delete</button>
@@ -76,16 +95,21 @@ function drawingRow(d){
 async function refresh(){
   try{
     setStatus("loading…");
+
     const [notes, drawings] = await Promise.all([
       api("/api/notes", { method:"GET" }),
-      api("/api/drawing", { method:"GET" })
+      api("/api/drawings", { method:"GET" })   // ✅ FIXED
     ]);
 
     els.notesList.innerHTML = "";
-    (notes.notes||[]).slice().reverse().forEach(n=>els.notesList.appendChild(noteRow(n)));
+    (notes.notes||[])
+      .slice()
+      .reverse()
+      .forEach(n=>els.notesList.appendChild(noteRow(n)));
 
     els.drawingsList.innerHTML = "";
-    (drawings.drawings||[]).forEach(d=>els.drawingsList.appendChild(drawingRow(d)));
+    (drawings.drawings||[])
+      .forEach(d=>els.drawingsList.appendChild(drawingRow(d)));
 
     setStatus(`ok • notes ${(notes.notes||[]).length} • drawings ${(drawings.drawings||[]).length}`);
   }catch(e){
@@ -100,8 +124,12 @@ document.addEventListener("click", async (e)=>{
   if(btnN){
     const id = btnN.getAttribute("data-del-note");
     if(!confirm(`delete note ${id}?`)) return;
+
     try{
-      await api(`/api/notes/${encodeURIComponent(id)}`, { method:"DELETE", body: "{}" });
+      await api(`/api/notes/${encodeURIComponent(id)}`, {
+        method:"DELETE",
+        body:"{}"
+      });
       refresh();
     }catch(err){
       alert(String(err.message||err));
@@ -112,8 +140,12 @@ document.addEventListener("click", async (e)=>{
   if(btnD){
     const id = btnD.getAttribute("data-del-draw");
     if(!confirm(`delete drawing ${id}?`)) return;
+
     try{
-      await api(`/api/drawing/${encodeURIComponent(id)}`, { method:"DELETE", body: "{}" });
+      await api(`/api/drawings/${encodeURIComponent(id)}`, {   // ✅ FIXED
+        method:"DELETE",
+        body:"{}"
+      });
       refresh();
     }catch(err){
       alert(String(err.message||err));
