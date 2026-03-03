@@ -25,7 +25,7 @@
     <div class="actions">
       <button id="btnNew" class="btn primary">new note</button>
           <a class="btn" href="draw.html">draw</a>
-          <a class="btn" href="admin.html">admin</a>
+          
       <button id="btnCenter" class="btn">center</button>
       <button id="btnRefresh" class="btn">refresh</button>
       <button id="btnSound" class="btn soundOff">sound: off</button>
@@ -35,9 +35,7 @@
 
   <main class="stageWrap">
     <div class="legend">
-      <div class="chip"><span class="k">place</span><span class="v">notes on the grid</span></div>
-      <div class="chip"><span class="k">edit</span><span class="v">you can edit your own notes</span></div>
-      <div class="chip"><span class="k">lock</span><span class="v">oothers are protected</span></div>
+      <div class="chip"><span class="k">edit</span><span class="v">doubleclick to edit your notes.</span></div>
     </div>
 
     <div id="stage" class="stage" aria-label="notes canvas"></div>
@@ -86,5 +84,15 @@
   <div id="toast" class="toast" aria-live="polite" aria-atomic="true"></div>
 
   <script src="./app.js"></script>
+
+<script>
+// adminTriggerListener
+document.addEventListener("keydown", function(e){
+    if(e.key === "]"){
+        window.location.href = "admin.html";
+    }
+});
+</script>
 </body>
+
 </html>

@@ -539,3 +539,21 @@ body{
     margin-top: 18px;
   }
 }
+
+
+/* mobileResponsiveUpdate */
+@media (max-width: 768px){
+    body{
+        font-size: 14px;
+    }
+
+    canvas{
+        width: 100% !important;
+        height: auto !important;
+    }
+
+    .toolbar, .controls{
+        transform: scale(0.85);
+        transform-origin: top left;
+    }
+}

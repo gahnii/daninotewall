@@ -264,3 +264,39 @@ function installWrapPan(){
   wrap.addEventListener("pointercancel", end);
 }
 
+
+
+// mobileDrawSupport
+const canvas = document.querySelector("canvas");
+if(canvas){
+    const ctx = canvas.getContext("2d");
+    let drawing = false;
+
+    function getTouchPos(e){
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: e.touches[0].clientX - rect.left,
+            y: e.touches[0].clientY - rect.top
+        };
+    }
+
+    canvas.addEventListener("touchstart", function(e){
+        e.preventDefault();
+        drawing = true;
+        const pos = getTouchPos(e);
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
+    }, {passive:false});
+
+    canvas.addEventListener("touchmove", function(e){
+        if(!drawing) return;
+        e.preventDefault();
+        const pos = getTouchPos(e);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+    }, {passive:false});
+
+    canvas.addEventListener("touchend", function(){
+        drawing = false;
+    });
+}
