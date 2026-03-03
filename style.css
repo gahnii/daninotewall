@@ -30,6 +30,7 @@ html,body{height:100%}
 body{
   margin:0;
   overflow:hidden;
+  touch-action: manipulation;
   background:var(--bg);
   color:var(--ink);
   font-family:var(--pixel);
@@ -364,7 +365,7 @@ body{
 
 /* keep notes draggable without triggering browser panning on the note itself */
 .note{
-  touch-action: none;
+  touch-action: pan-x pan-y;
 }
 
 /* optional: make scrollbars visible on desktop */

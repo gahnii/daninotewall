@@ -832,30 +832,3 @@ function installPan(){
 try{installPan();}catch(e){}
 
 
-// touchPanEnabled
-let isTouchPanning = false;
-let lastTouchX = 0;
-let lastTouchY = 0;
-
-document.addEventListener("touchstart", function(e){
-    if(e.touches.length === 1){
-        isTouchPanning = true;
-        lastTouchX = e.touches[0].clientX;
-        lastTouchY = e.touches[0].clientY;
-    }
-}, {passive:false});
-
-document.addEventListener("touchmove", function(e){
-    if(isTouchPanning && e.touches.length === 1){
-        e.preventDefault();
-        let dx = e.touches[0].clientX - lastTouchX;
-        let dy = e.touches[0].clientY - lastTouchY;
-        window.scrollBy(-dx, -dy);
-        lastTouchX = e.touches[0].clientX;
-        lastTouchY = e.touches[0].clientY;
-    }
-}, {passive:false});
-
-document.addEventListener("touchend", function(){
-    isTouchPanning = false;
-});
