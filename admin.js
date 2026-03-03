@@ -113,7 +113,7 @@ document.addEventListener("click", async (e)=>{
     const id = btnD.getAttribute("data-del-draw");
     if(!confirm(`delete drawing ${id}?`)) return;
     try{
-      await api(`/api/drawings/${encodeURIComponent(id)}`, { method:"DELETE", body: "{}" });
+      await api(`/api/drawing/${encodeURIComponent(id)}`, { method:"DELETE", body: "{}" });
       refresh();
     }catch(err){
       alert(String(err.message||err));
