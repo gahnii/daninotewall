@@ -1,3 +1,4 @@
+
 const els = {
   token: document.getElementById("token"),
   btnSaveToken: document.getElementById("btnSaveToken"),
@@ -98,13 +99,11 @@ async function refresh(){
 
     const [notes, drawings] = await Promise.all([
       api("/api/notes", { method:"GET" }),
-      api("/api/drawings", { method:"GET" })   // ✅ FIXED
+      api("/api/drawing", { method:"GET" })
     ]);
 
     els.notesList.innerHTML = "";
-    (notes.notes||[])
-      .slice()
-      .reverse()
+    (notes.notes||[]).slice().reverse()
       .forEach(n=>els.notesList.appendChild(noteRow(n)));
 
     els.drawingsList.innerHTML = "";
@@ -124,7 +123,6 @@ document.addEventListener("click", async (e)=>{
   if(btnN){
     const id = btnN.getAttribute("data-del-note");
     if(!confirm(`delete note ${id}?`)) return;
-
     try{
       await api(`/api/notes/${encodeURIComponent(id)}`, {
         method:"DELETE",
@@ -140,9 +138,8 @@ document.addEventListener("click", async (e)=>{
   if(btnD){
     const id = btnD.getAttribute("data-del-draw");
     if(!confirm(`delete drawing ${id}?`)) return;
-
     try{
-      await api(`/api/drawings/${encodeURIComponent(id)}`, {   // ✅ FIXED
+      await api(`/api/drawing/${encodeURIComponent(id)}`, {
         method:"DELETE",
         body:"{}"
       });
